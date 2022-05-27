@@ -3,14 +3,16 @@ use nom::{
     bytes::complete::tag,
     character::{
         self,
-        complete::{alpha1, line_ending, not_line_ending, one_of, satisfy, space0, space1},
+        complete::{
+            alpha1, anychar, line_ending, not_line_ending, one_of, satisfy, space0, space1,
+        },
         is_alphanumeric, is_digit,
     },
     combinator::peek,
     error::VerboseError,
     multi::{many0, separated_list1},
     number,
-    sequence::delimited,
+    sequence::{delimited, preceded},
     IResult,
 };
 
@@ -55,7 +57,11 @@ pub enum TypeName {
         type_name: String,
         array_info: ArrayInfo,
     },
-    LimitedString(usize),
+    LimitedString {
+        size: usize,
+        array_info: ArrayInfo,
+    },
+    String(ArrayInfo),
 }
 
 #[derive(Debug)]
@@ -98,7 +104,13 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
 ///
 /// $VarDef = $Variable $Comment $End | $Variable $End
 /// $Variable = $TypeName $ID | $TypeName $ID = $Value | $TypeName $ID $Value
-/// $TypeName = $ID/$ID $ArrayInfo | $ID/$ID | $ID $ArrayInfo | $ID
+/// $TypeName =
+///     string<=$PlusNum |
+///     string<=$PlusNum $ArrayInfo |
+///     $ID/$ID $ArrayInfo |
+///     $ID/$ID |
+///     $ID $ArrayInfo |
+///     $ID
 /// $ArrayInfo = [] | [$PlusNum] | [<=$PlusNum]
 /// $PlusNum = Regex([0..9]+)
 ///
@@ -106,9 +118,10 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
 ///
 /// $ID = Regex((_|[a..zA..Z]+)[a..zA..Z0..9]*)
 ///
-/// $Value = $Bool | $Num | $Array
+/// $Value = $Bool | $Num | $Array | $String
 /// $Bool = true | false
 /// $Num = Regex(-?[0..9]+(.[0..9]+)?)
+/// $String = 'characters' | "characters"
 ///
 /// $Array = [ $Elements ]
 /// $Elements = $Value | $Value , $Elements
@@ -121,39 +134,9 @@ fn parse_expr(input: &str) -> PResult<Expr> {
 /// ```text
 /// $VarDef = $Variable $Comment $End | $Variable $End
 /// $Variable = $TypeName $ID | $TypeName $ID = $Value | $TypeName $ID $Value
-/// $TypeName = $ID/$ID $ArrayInfo | $ID/$ID | $ID $ArrayInfo | $ID
 /// ```
 fn parse_variable(input: &str) -> PResult<Expr> {
-    // parse type name
-    // $TypeName = $ID/$ID $ArrayInfo | $ID/$ID | $ID $ArrayInfo | $ID
-    let (input, scope) = parse_identifier(input)?;
-
-    let (input, type_name) = if peek_tag("/", input).is_ok() {
-        // $ID/$ID
-        let (input, _) = tag("/")(input)?;
-        let (input, type_name) = parse_identifier(input)?;
-
-        // $ArrayInfo
-        let (input, array_info) = parse_array_info(input)?;
-        (
-            input,
-            TypeName::ScopedType {
-                scope,
-                type_name,
-                array_info,
-            },
-        )
-    } else {
-        // $ArrayInfo
-        let (input, array_info) = parse_array_info(input)?;
-        (
-            input,
-            TypeName::Type {
-                type_name: scope,
-                array_info,
-            },
-        )
-    };
+    let (input, type_name) = parse_typename(input)?;
 
     // skip whitespaces
     let (input, _) = space1(input)?;
@@ -172,7 +155,6 @@ fn parse_variable(input: &str) -> PResult<Expr> {
             '=' => {
                 // constant value
                 // = $Value
-
                 let (input, _) = tag("=")(input)?;
                 let (input, _) = space0(input)?;
                 let (input, val) = parse_value(input)?;
@@ -220,6 +202,70 @@ fn parse_variable(input: &str) -> PResult<Expr> {
             value,
         },
     ))
+}
+
+/// ```text
+/// $TypeName =
+///     string<=$PlusNum |
+///     string<=$PlusNum $ArrayInfo |
+///     $ID/$ID $ArrayInfo |
+///     $ID/$ID |
+///     $ID $ArrayInfo |
+///     $ID
+/// ```
+fn parse_typename(input: &str) -> PResult<TypeName> {
+    // parse type name
+    let (input, scope) = parse_identifier(input)?;
+
+    if scope == "string" {
+        return parse_string_type(input);
+    }
+
+    if peek_tag("/", input).is_ok() {
+        // $ID/$ID
+        let (input, _) = tag("/")(input)?;
+        let (input, type_name) = parse_identifier(input)?;
+
+        // $ArrayInfo
+        //let (input, _) = space0(input)?;
+        let (input, array_info) = parse_array_info(input)?;
+        Ok((
+            input,
+            TypeName::ScopedType {
+                scope,
+                type_name,
+                array_info,
+            },
+        ))
+    } else {
+        // $ArrayInfo
+        let (input, array_info) = parse_array_info(input)?;
+        Ok((
+            input,
+            TypeName::Type {
+                type_name: scope,
+                array_info,
+            },
+        ))
+    }
+}
+
+fn parse_string_type(input: &str) -> PResult<TypeName> {
+    if peek_tag("<=", input).is_ok() {
+        let (input, _) = tag("<=")(input)?;
+        let (input, size) = character::complete::u64(input)?;
+        let (input, array_info) = parse_array_info(input)?;
+        Ok((
+            input,
+            TypeName::LimitedString {
+                size: size as usize,
+                array_info,
+            },
+        ))
+    } else {
+        let (input, array_info) = parse_array_info(input)?;
+        Ok((input, TypeName::String(array_info)))
+    }
 }
 
 /// ```text
@@ -276,8 +322,14 @@ fn digit(input: &str) -> PResult<char> {
     satisfy(|c| is_digit(c as u8))(input)
 }
 
+/// ```text
+/// $Value = $Bool | $Num | $Array | $String
+/// $Bool = true | false
+/// $Num = Regex(-?[0..9]+(.[0..9]+)?)
+/// $String = 'characters' | "characters"
+/// ```
 fn parse_value(input: &str) -> PResult<Value> {
-    alt((parse_num, parse_bool, parse_array))(input)
+    alt((parse_num, parse_bool, parse_array, parse_string))(input)
 }
 
 /// ```text
@@ -333,7 +385,13 @@ fn parse_array(input: &str) -> PResult<Value> {
 /// $PlusNum = Regex([0..9]+)
 /// ```
 fn parse_array_info(input: &str) -> PResult<ArrayInfo> {
-    if peek_tag("[", input).is_ok() {
+    fn is_array(input: &str) -> PResult<()> {
+        let (input, _) = peek(preceded(space0, tag("[")))(input)?;
+        Ok((input, ()))
+    }
+
+    if is_array(input).is_ok() {
+        let (input, _) = space0(input)?;
         let (input, _) = tag("[")(input)?;
         let (input, _) = space0(input)?;
         let (input, array_info) = if peek_tag("]", input).is_ok() {
@@ -356,5 +414,53 @@ fn parse_array_info(input: &str) -> PResult<ArrayInfo> {
         Ok((input, array_info))
     } else {
         Ok((input, ArrayInfo::NotArray))
+    }
+}
+
+/// # Escaped Characters
+///
+/// - \\
+/// - \r
+/// - \n
+/// - \t
+/// - \' or \"
+fn parse_string(input: &str) -> PResult<Value> {
+    let (mut input, quote) = one_of("\"'")(input)?;
+
+    let mut val = String::new();
+
+    loop {
+        let (next, c) = anychar(input)?;
+        input = next;
+
+        match c {
+            c if c == quote => return Ok((input, Value::String(val))),
+            '\\' => {
+                let (next, c) = alt((one_of("rnt\\"), character::complete::char(quote)))(input)?;
+                input = next;
+
+                match c {
+                    'r' => {
+                        val.push_str("\\r");
+                    }
+                    'n' => {
+                        val.push_str("\\n");
+                    }
+                    't' => {
+                        val.push_str("\\t");
+                    }
+                    '\\' => {
+                        val.push_str("\\\\");
+                    }
+                    c if c == quote => {
+                        val.push(quote);
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => {
+                val.push(c);
+            }
+        }
     }
 }

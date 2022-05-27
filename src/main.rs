@@ -17,6 +17,12 @@ i8 f = -5
 i64[] arr1 = [10, 20, 30]
 i64[3] arr2 = [10, 20, 30]
 i64[<=3] arr3 = [10, 20, 30]
+
+string s1 = \"abc\\\\ def \\\" ghi \"
+string s2 = \"\\r\\n\\t\"
+string<=10 s3
+string<=10 [5] s4
+
 ";
 
     match parser::parse_msg(input).finish() {
