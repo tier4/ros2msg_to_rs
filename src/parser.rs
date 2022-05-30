@@ -15,6 +15,7 @@ use nom::{
     sequence::{delimited, preceded},
     IResult,
 };
+use std::fmt::Display;
 
 type PResult<'a, OUT> = IResult<&'a str, OUT, VerboseError<&'a str>>;
 
@@ -24,10 +25,11 @@ pub enum Expr {
         type_name: TypeName,
         var_name: String,
         value: Option<ValueType>,
+        comment: Option<String>,
     },
     Empty, // comment or empty line
     Comment,
-    EOF,
+    Eof,
 }
 
 #[derive(Debug)]
@@ -44,6 +46,19 @@ pub enum Value {
     Uint(u64),
     Int(i64),
     Array(Vec<Value>),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Int(n) => write!(f, "{n}"),
+            Value::Uint(n) => write!(f, "{n}"),
+            Value::Float(n) => write!(f, "{n}"),
+            Value::String(n) => write!(f, "b\"{n}\0\""),
+            Value::Bool(n) => write!(f, "{n}"),
+            Value::Array(n) => write!(f, "{:?}", n),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -67,9 +82,9 @@ pub enum TypeName {
 #[derive(Debug)]
 pub enum ArrayInfo {
     NotArray,
-    DynamicArray,
-    StaticArray(usize),
-    LimitedArray(usize),
+    Dynamic,
+    Static(usize),
+    Limited(usize),
 }
 
 /// Parse .msg file.
@@ -116,7 +131,7 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
 ///
 /// $Comment = Regex(#.*) $End
 ///
-/// $ID = Regex((_|[a..zA..Z]+)[a..zA..Z0..9]*)
+/// $ID = Regex((_|[a..zA..Z]+)([a..zA..Z0..9]|_)*)
 ///
 /// $Value = $Bool | $Num | $Array | $String
 /// $Bool = true | false
@@ -177,13 +192,13 @@ fn parse_variable(input: &str) -> PResult<Expr> {
     // skip whitespaces
     let (input, _) = space0(input)?;
 
-    let input = if let Ok(_) = peek_tag("#", input) {
+    let (input, comment) = if peek_tag("#", input).is_ok() {
         // skip coment
         let (input, _) = tag("#")(input)?;
-        let (input, _) = not_line_ending(input)?;
-        input
+        let (input, c) = not_line_ending(input)?;
+        (input, Some(c.to_string()))
     } else {
-        input
+        (input, None)
     };
 
     let input = if !input.is_empty() {
@@ -200,6 +215,7 @@ fn parse_variable(input: &str) -> PResult<Expr> {
             type_name,
             var_name,
             value,
+            comment,
         },
     ))
 }
@@ -269,7 +285,7 @@ fn parse_string_type(input: &str) -> PResult<TypeName> {
 }
 
 /// ```text
-/// $ID = Regex((_|[a..zA..Z]+)[a..zA..Z0..9]*)
+/// $ID = Regex((_|[a..zA..Z]+)([a..zA..Z0..9]|_)*)
 /// ```
 fn parse_identifier(input: &str) -> PResult<String> {
     // (_|[a..zA..Z]+)
@@ -303,7 +319,7 @@ fn parse_comment(input: &str) -> PResult<Expr> {
 /// empty line or EOF
 fn parse_empty(input: &str) -> PResult<Expr> {
     if input.is_empty() {
-        Ok((input, Expr::EOF))
+        Ok((input, Expr::Eof))
     } else {
         let (input, _) = line_ending(input)?;
         Ok((input, Expr::Empty))
@@ -349,12 +365,10 @@ fn parse_num(input: &str) -> PResult<Value> {
         let (input, d) = number::complete::double(input)?;
         let val = (d + n as f64) * minus as f64;
         Ok((input, Value::Float(val)))
+    } else if minus == -1 {
+        Ok((input, Value::Int(n as i64 * minus)))
     } else {
-        if minus == -1 {
-            Ok((input, Value::Int(n as i64 * minus)))
-        } else {
-            Ok((input, Value::Uint(n)))
-        }
+        Ok((input, Value::Uint(n)))
     }
 }
 
@@ -396,16 +410,16 @@ fn parse_array_info(input: &str) -> PResult<ArrayInfo> {
         let (input, _) = space0(input)?;
         let (input, array_info) = if peek_tag("]", input).is_ok() {
             // []
-            (input, ArrayInfo::DynamicArray)
+            (input, ArrayInfo::Dynamic)
         } else if peek_tag("<", input).is_ok() {
             // [<=$PlusNum]
             let (input, _) = tag("<=")(input)?;
             let (input, size) = character::complete::u64(input)?;
-            (input, ArrayInfo::LimitedArray(size as usize))
+            (input, ArrayInfo::Limited(size as usize))
         } else {
             // [$PlusNum]
             let (input, size) = character::complete::u64(input)?;
-            (input, ArrayInfo::StaticArray(size as usize))
+            (input, ArrayInfo::Static(size as usize))
         };
 
         let (input, _) = space0(input)?;
@@ -453,6 +467,9 @@ fn parse_string(input: &str) -> PResult<Value> {
                         val.push_str("\\\\");
                     }
                     c if c == quote => {
+                        if c == '"' {
+                            val.push('\\');
+                        }
                         val.push(quote);
                     }
                     _ => unreachable!(),

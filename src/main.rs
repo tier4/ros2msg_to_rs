@@ -1,5 +1,7 @@
+use generator::gen_msg;
 use nom::{error::convert_error, Finish};
 
+mod generator;
 mod parser;
 
 fn main() {
@@ -25,9 +27,37 @@ string<=10 [5] s4
 
 ";
 
-    match parser::parse_msg(input).finish() {
-        Ok((_, result)) => println!("success: {:?}", result),
-        Err(e) => println!("{}", convert_error(input, e)),
+    let input2 = "
+bool a
+string b
+int8 c
+uint8 d
+int16 e
+uint16 f
+int32 g
+uint32 h
+int64 i # aaa
+uint64 k
+float32 l
+float64 m
+
+bool o = true
+float64 p = 10.2
+
+string s1 = \"abc\\\\ def \\\" ghi \" # bbbb
+string s2 = \"\\r\\n\\t\"
+";
+
+    match parser::parse_msg(input2).finish() {
+        Ok((_, result)) => {
+            println!("success: {:#?}", result);
+
+            let lines = gen_msg("TestMsg", &result);
+            for line in lines {
+                println!("{line}");
+            }
+        }
+        Err(e) => println!("{}", convert_error(input2, e)),
     }
 }
 

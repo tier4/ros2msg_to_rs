@@ -4,22 +4,67 @@ This is used for [safe_drive](https://github.com/tier4/safe_drive), a Rust bindi
 
 ## Types (Galactic)
 
-| ROS           | C                                 | Rust      |
-|---------------|-----------------------------------|-----------|
-| bool          | bool                              | bool      |
-| int8          | int8_t                            | i8        |
-| uint8         | uint8_t                           | u8        |
-| int16         | int16_t                           | i16       |
-| uint16        | uint16_t                          | u16       |
-| int32         | int32_t                           | i32       |
-| uint32        | uint32_t                          | u32       |
-| int64         | int64_t                           | i64       |
-| uint64        | uint64_t                          | u64       |
-| float32       | float                             | f32       |
-| float64       | double                            | f64       |
-| string        | rosidl_runtime_c__String          |           |
-| int32[]       | rosidl_runtime_c__int32__Sequence |           |
-| int32[10]     | int32_t var[10]                   | [i32; 10] |
+| ROS                          | C                                         | Rust      |
+|------------------------------|-------------------------------------------|-----------|
+| bool                         | bool                                      | bool      |
+| int8                         | int8_t                                    | i8        |
+| uint8                        | uint8_t                                   | u8        |
+| int16                        | int16_t                                   | i16       |
+| uint16                       | uint16_t                                  | u16       |
+| int32                        | int32_t                                   | i32       |
+| uint32                       | uint32_t                                  | u32       |
+| int64                        | int64_t                                   | i64       |
+| uint64                       | uint64_t                                  | u64       |
+| float32                      | float                                     | f32       |
+| float64                      | double                                    | f64       |
+| string                       | struct rosidl_runtime_c__String           | (*1)      |
+| time                         | (*2)                                      |           |
+| duration                     | (*2)                                      |           |
+| std_msgs/Empty               | struct std_msgs__msg__Empty               | (*1)      |
+| std_msgs/Bool                | struct std_msgs__msg__Bool                | (*1)      |
+| std_msgs/Byte                | struct std_msgs__msg__Bool                | (*1)      |
+| std_msgs/ByteMultiArray      | struct std_msgs__msg__ByteMultiArray      | (*1)      |
+| std_msgs/Char                | struct std_msgs__msg__Char                | (*1)      |
+| std_msgs/Int8                | struct std_msgs__msg__Int8                | (*1)      |
+| std_msgs/Int8MultiArray      | struct std_msgs__msg__Int8MultiArray      | (*1)      |
+| std_msgs/Int16               | struct std_msgs__msg__Int16               | (*1)      |
+| std_msgs/Int16MultiArray     | struct std_msgs__msg__Int16MultiArray     | (*1)      |
+| std_msgs/Int32               | struct std_msgs__msg__Int32               | (*1)      |
+| std_msgs/Int32MultiArray     | struct std_msgs__msg__Int32MultiArray     | (*1)      |
+| std_msgs/Int64               | struct std_msgs__msg__Int64               | (*1)      |
+| std_msgs/Int64MultiArray     | struct std_msgs__msg__Int64MultiArray     | (*1)      |
+| std_msgs/UInt8               | struct std_msgs__msg__UInt8               | (*1)      |
+| std_msgs/UInt8MultiArray     | struct std_msgs__msg__UInt8MultiArray     | (*1)      |
+| std_msgs/UInt16              | struct std_msgs__msg__UInt16__Sequence    | (*1)      |
+| std_msgs/UInt16MultiArray    | struct std_msgs__msg__UInt16MultiArray    | (*1)      |
+| std_msgs/UInt32              | struct std_msgs__msg__UInt32              | (*1)      |
+| std_msgs/UInt32MultiArray    | struct std_msgs__msg__UInt32MultiArray    | (*1)      |
+| std_msgs/UInt64              | struct std_msgs__msg__UInt64              | (*1)      |
+| std_msgs/UInt64MultiArray    | struct std_msgs__msg__UInt64MultiArray    | (*1)      |
+| std_msgs/Float32             | struct std_msgs__msg__Float32             | (*1)      |
+| std_msgs/Float32MultiArray   | struct std_msgs__msg__Float32MultiArray   | (*1)      |
+| std_msgs/Float64             | struct std_msgs__msg__Float64             | (*1)      |
+| std_msgs/Float64MultiArray   | struct std_msgs__msg__Float64MultiArray   | (*1)      |
+| std_msgs/MultiArrayDimension | struct std_msgs__msg__MultiArrayDimension | (*1)      |
+| std_msgs/MultiArrayLayout    | struct std_msgs__msg__MultiArrayLayout    | (*1)      |
+| std_msgs/String              | struct std_msgs__msg__String              | (*1)      |
+| std_msgs/ColorRGBA           | struct std_msgs__msg__ColorRGBA           | (*1)      |
+| std_msgs/Header              | struct std_msgs__msg__Header              | (*1)      |
+| std_msgs/Duration            | (*2)                                      |           |
+| std_msgs/Time                | (*2)                                      |           |
+
+- (*1): Rust's types are automatically generated by C's header files
+  - Defined in [safe_drive::msgs](https://github.com/tier4/safe_drive/blob/main/src/msgs.rs).
+- (*2): Could not find in C's header files
+
+## Array Types
+
+| ROS                          | C                                         | Rust      |
+|------------------------------|-------------------------------------------|-----------|
+| int32[]                      | struct rosidl_runtime_c__int32__Sequence  |           |
+| int32[10]                    | int32_t var[10]                           | [i32; 10] |
+
+## Memo
 
 [rosidl_runtime_c__String](https://docs.ros2.org/galactic/api/rosidl_runtime_c/structrosidl__runtime__c____String.html)
 
@@ -58,4 +103,44 @@ ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(uint32, uint32_t)
 ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(int32, int32_t)
 ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(uint64, uint64_t)
 ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(int64, int64_t)
+```
+
+`std_msgs/Bool`
+
+```c
+typedef struct std_msgs__msg__Bool
+{
+  bool data;
+} std_msgs__msg__Bool;
+
+// Struct for a sequence of std_msgs__msg__Bool.
+typedef struct std_msgs__msg__Bool__Sequence
+{
+  std_msgs__msg__Bool * data;
+  /// The number of valid items in data
+  size_t size;
+  /// The number of allocated items in data
+  size_t capacity;
+} std_msgs__msg__Bool__Sequence;
+```
+
+`std_msgs/ByteMultiArray`
+
+```c
+// Struct defined in msg/ByteMultiArray in the package std_msgs.
+typedef struct std_msgs__msg__ByteMultiArray
+{
+  std_msgs__msg__MultiArrayLayout layout;
+  rosidl_runtime_c__octet__Sequence data;
+} std_msgs__msg__ByteMultiArray;
+
+// Struct for a sequence of std_msgs__msg__ByteMultiArray.
+typedef struct std_msgs__msg__ByteMultiArray__Sequence
+{
+  std_msgs__msg__ByteMultiArray * data;
+  /// The number of valid items in data
+  size_t size;
+  /// The number of allocated items in data
+  size_t capacity;
+} std_msgs__msg__ByteMultiArray__Sequence;
 ```
