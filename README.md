@@ -61,7 +61,8 @@ This is used for [safe_drive](https://github.com/tier4/safe_drive), a Rust bindi
 
 | ROS                          | C                                         | Rust      |
 |------------------------------|-------------------------------------------|-----------|
-| int32[]                      | struct rosidl_runtime_c__int32__Sequence  |           |
+| int32[]                      | struct rosidl_runtime_c__int32__Sequence  | (*1)      |
+| int32[<=5]                   | struct rosidl_runtime_c__int32__Sequence  | (*1)      |
 | int32[10]                    | int32_t var[10]                           | [i32; 10] |
 
 ## Memo

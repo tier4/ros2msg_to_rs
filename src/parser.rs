@@ -46,6 +46,7 @@ pub enum Value {
     Uint(u64),
     Int(i64),
     Array(Vec<Value>),
+    Id(String),
 }
 
 impl Display for Value {
@@ -57,6 +58,7 @@ impl Display for Value {
             Value::String(n) => write!(f, "b\"{n}\0\""),
             Value::Bool(n) => write!(f, "{n}"),
             Value::Array(n) => write!(f, "{:?}", n),
+            Value::Id(n) => write!(f, "{n}"),
         }
     }
 }
@@ -345,7 +347,13 @@ fn digit(input: &str) -> PResult<char> {
 /// $String = 'characters' | "characters"
 /// ```
 fn parse_value(input: &str) -> PResult<Value> {
-    alt((parse_num, parse_bool, parse_array, parse_string))(input)
+    alt((
+        parse_num,
+        parse_bool,
+        parse_array,
+        parse_string,
+        parse_id_value,
+    ))(input)
 }
 
 /// ```text
@@ -480,4 +488,9 @@ fn parse_string(input: &str) -> PResult<Value> {
             }
         }
     }
+}
+
+fn parse_id_value(input: &str) -> PResult<Value> {
+    let (input, id) = parse_identifier(input)?;
+    Ok((input, Value::Id(id)))
 }

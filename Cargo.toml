@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 nom = "7.1.1"
+walkdir = "2.3.2"
