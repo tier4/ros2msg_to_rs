@@ -68,6 +68,8 @@ impl Drop for {type_name} {{
     }}
 }}
 
+#[repr(C)]
+#[derive(Debug)]
 pub struct {type_name}Sequence {{
     data: *mut {type_name},
     size: usize,
@@ -141,36 +143,44 @@ fn gen_type(type_name: &'_ TypeName) -> Cow<'_, str> {
             array_info,
         } => {
             let type_str = if let Some(prim) = gen_primitives(type_name) {
-                prim
+                prim.to_string()
             } else {
-                type_name
+                format!("super::{type_name}")
             };
-            gen_array_type(type_str, array_info)
+            gen_array_type(type_str.into(), array_info)
         }
         TypeName::String(array_info) => {
             let type_str = "rosidl_runtime_c__String";
-            gen_array_type(type_str, array_info)
+            gen_array_type(type_str.into(), array_info)
         }
         TypeName::LimitedString {
             size: _size,
             array_info,
         } => {
             let type_str = "rosidl_runtime_c__String";
-            gen_array_type(type_str, array_info)
+            gen_array_type(type_str.into(), array_info)
         }
         TypeName::ScopedType {
             scope,
             type_name,
             array_info,
         } => {
-            let type_str = format!("{scope}__msg__{type_name}");
-            let arr = gen_array_type(&type_str, array_info);
+            let type_str = match scope.as_ref() {
+                "std_msgs" => {
+                    format!("{scope}__msg__{type_name}")
+                }
+                _ => {
+                    format!("{scope}::msg::{type_name}")
+                }
+            };
+
+            let arr = gen_array_type(type_str.into(), array_info);
             arr.into_owned().into()
         }
     }
 }
 
-fn gen_array_type<'a>(type_str: &'a str, array_info: &ArrayInfo) -> Cow<'a, str> {
+fn gen_array_type<'a>(type_str: Cow<'a, str>, array_info: &ArrayInfo) -> Cow<'a, str> {
     match array_info {
         ArrayInfo::Dynamic => gen_seq_type(type_str).into(),
         ArrayInfo::Limited(_n) => gen_seq_type(type_str).into(),
@@ -199,14 +209,14 @@ fn gen_primitives(type_name: &str) -> Option<&str> {
 
 fn gen_const_type(type_name: &'_ TypeName) -> Cow<'_, str> {
     if let TypeName::String(array_info) = type_name {
-        gen_array_type("&[u8]", array_info)
+        gen_array_type("&[u8]".into(), array_info)
     } else {
         gen_type(type_name)
     }
 }
 
-fn gen_seq_type(type_str: &str) -> Cow<'_, str> {
-    match type_str {
+fn gen_seq_type(type_str: Cow<'_, str>) -> Cow<'_, str> {
+    match type_str.as_ref() {
         "bool" => "rosidl_runtime_c__bool__Sequence".into(),
         "i8" => "rosidl_runtime_c__int8__Sequence".into(),
         "i16" => "rosidl_runtime_c__int16__Sequence".into(),

@@ -1,6 +1,15 @@
+use convert_case::{Case, Casing};
 use generator::gen_msg;
 use nom::{error::convert_error, Finish};
-use std::{env, error::Error, ffi::OsString, fs::File, io::prelude::*};
+use std::{
+    collections::BTreeMap,
+    env,
+    error::Error,
+    ffi::{OsStr, OsString},
+    fs::{create_dir_all, File},
+    io::prelude::*,
+    path::{Path, PathBuf},
+};
 use walkdir::WalkDir;
 
 mod generator;
@@ -9,14 +18,32 @@ mod parser;
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() <= 1 {
-        eprintln!("usage: {} dir", args[0]);
-        return Err("an argument is required".into());
+        eprintln!("usage: {} src [dst]", args[0]);
+        eprintln!("if [dst] is omitted, files are created under \"target\"");
+        return Err("at least one argument (src) is required".into());
     }
 
+    let arg_path = Path::new(&args[1]).canonicalize()?;
+    let project_name = arg_path.file_name().unwrap();
+
+    // destination directory
+    let target = if let Some(dst) = args.get(2) {
+        Path::new(dst).to_path_buf()
+    } else {
+        Path::new("target").join(project_name)
+    };
+
+    generate_msgs(&target, &arg_path)?;
+
+    Ok(())
+}
+
+fn generate_msgs(target: &PathBuf, src: &PathBuf) -> Result<(), Box<dyn Error>> {
     let mut mod_name = OsString::new();
+    let mut modules = BTreeMap::new();
 
     // traverse directory
-    for entry in WalkDir::new(&args[1]) {
+    for entry in WalkDir::new(src) {
         let path = entry?;
 
         // assume children are modules
@@ -38,13 +65,35 @@ fn main() -> Result<(), Box<dyn Error>> {
                         let mut contents = String::new();
                         f.read_to_string(&mut contents)?;
 
+                        // parse .msg file
                         match parser::parse_msg(&contents).finish() {
                             Ok((_, result)) => {
-                                println!("{}", path.path().display());
-
+                                // generate Rust code
                                 let lines = gen_msg(mod_name.to_str().unwrap(), type_name, &result);
+
+                                // crate's src directory
+                                // "target/{mod_name}/src"
+                                let crate_dir = target.join(mod_name.to_str().unwrap()).join("src");
+
+                                // module's directory
+                                // "target/{mod_name}/src/msg"
+                                let target_dir = crate_dir.join("msg");
+
+                                // create directory
+                                create_dir_all(&target_dir)?;
+
+                                // generate target/{mod_name}/src/msg/{snake_type_name}.rs
+                                let snake_type_name = type_name.to_case(Case::Snake);
+                                let mod_file = format!("{snake_type_name}.rs");
+                                let target_file = target_dir.join(mod_file);
+
+                                add_modules(&mut modules, crate_dir.as_os_str(), snake_type_name);
+
+                                let mut w = File::create(&target_file)?;
+
+                                println!("generating: {}", target_file.display());
                                 for line in lines {
-                                    println!("{line}");
+                                    w.write_fmt(format_args!("{}\n", line))?;
                                 }
                             }
                             Err(e) => {
@@ -57,6 +106,38 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+    }
+
+    for (k, v) in modules {
+        generate_msg_rs(&v, Path::new(&k))?;
+    }
+
+    Ok(())
+}
+
+fn add_modules(map: &mut BTreeMap<OsString, Vec<String>>, key: &OsStr, value: String) {
+    if let Some(v) = map.get_mut(key) {
+        v.push(value);
+    } else {
+        let v = vec![value];
+        map.insert(key.to_os_string(), v);
+    }
+}
+
+fn generate_msg_rs(modules: &[String], target_dir: &Path) -> Result<(), Box<dyn Error>> {
+    let target_file = target_dir.join("msg.rs");
+    let mut w = File::create(&target_file)?;
+
+    println!("generating: {}", target_file.display());
+
+    for module in modules.iter() {
+        w.write_fmt(format_args!("mod {};\n", module))?;
+    }
+
+    w.write("\n".as_bytes())?;
+
+    for module in modules.iter() {
+        w.write_fmt(format_args!("pub use {}::*;\n", module))?;
     }
 
     Ok(())

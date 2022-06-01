@@ -6,11 +6,11 @@ use nom::{
         complete::{
             alpha1, anychar, line_ending, not_line_ending, one_of, satisfy, space0, space1,
         },
-        is_alphanumeric, is_digit,
+        is_alphanumeric,
     },
     combinator::peek,
     error::VerboseError,
-    multi::{many0, separated_list1},
+    multi::{many0, many1, separated_list1},
     number,
     sequence::{delimited, preceded},
     IResult,
@@ -46,7 +46,6 @@ pub enum Value {
     Uint(u64),
     Int(i64),
     Array(Vec<Value>),
-    Id(String),
 }
 
 impl Display for Value {
@@ -55,10 +54,9 @@ impl Display for Value {
             Value::Int(n) => write!(f, "{n}"),
             Value::Uint(n) => write!(f, "{n}"),
             Value::Float(n) => write!(f, "{n}"),
-            Value::String(n) => write!(f, "b\"{n}\0\""),
+            Value::String(n) => write!(f, "b\"{n}\\0\""),
             Value::Bool(n) => write!(f, "{n}"),
             Value::Array(n) => write!(f, "{:?}", n),
-            Value::Id(n) => write!(f, "{n}"),
         }
     }
 }
@@ -120,7 +118,7 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
 /// $Empty | $Comment | $VarDef
 ///
 /// $VarDef = $Variable $Comment $End | $Variable $End
-/// $Variable = $TypeName $ID | $TypeName $ID = $Value | $TypeName $ID $Value
+/// $Variable = $TypeName $ID | $TypeName $CapitalID = $Value | $TypeName $ID $Value
 /// $TypeName =
 ///     string<=$PlusNum |
 ///     string<=$PlusNum $ArrayInfo |
@@ -134,11 +132,13 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
 /// $Comment = Regex(#.*) $End
 ///
 /// $ID = Regex((_|[a..zA..Z]+)([a..zA..Z0..9]|_)*)
+/// $CapitalID = Regex((_|[A..Z]+)([A..Z0..9]|_)*)
 ///
-/// $Value = $Bool | $Num | $Array | $String
+/// $Value = $Bool | $Num | $Array | $String | $RawString
 /// $Bool = true | false
 /// $Num = Regex(-?[0..9]+(.[0..9]+)?)
 /// $String = 'characters' | "characters"
+/// $RawString = characters
 ///
 /// $Array = [ $Elements ]
 /// $Elements = $Value | $Value , $Elements
@@ -150,7 +150,7 @@ fn parse_expr(input: &str) -> PResult<Expr> {
 
 /// ```text
 /// $VarDef = $Variable $Comment $End | $Variable $End
-/// $Variable = $TypeName $ID | $TypeName $ID = $Value | $TypeName $ID $Value
+/// $Variable = $TypeName $CapitalID = $Value | $TypeName $ID | $TypeName $ID $Value
 /// ```
 fn parse_variable(input: &str) -> PResult<Expr> {
     let (input, type_name) = parse_typename(input)?;
@@ -158,38 +158,8 @@ fn parse_variable(input: &str) -> PResult<Expr> {
     // skip whitespaces
     let (input, _) = space1(input)?;
 
-    // parse variable name
-    // $ID
-    let (input, var_name) = parse_identifier(input)?;
-
-    // skip whitespaces
-    let (input, _) = space0(input)?;
-
-    // parse default or constant value
-    let mut value = None;
-    let input = if let Ok((_, c)) = peek_next_of(input) {
-        match c {
-            '=' => {
-                // constant value
-                // = $Value
-                let (input, _) = tag("=")(input)?;
-                let (input, _) = space0(input)?;
-                let (input, val) = parse_value(input)?;
-                value = Some(ValueType::Const(val));
-                input
-            }
-            '"' => todo!(),
-            _ => {
-                // default value
-                // $Value
-                let (input, val) = parse_value(input)?;
-                value = Some(ValueType::Default(val));
-                input
-            }
-        }
-    } else {
-        input
-    };
+    // parse mutable or immutable variables
+    let (input, (var_name, value)) = alt((parse_immutable_var, parse_mutable_var))(input)?;
 
     // skip whitespaces
     let (input, _) = space0(input)?;
@@ -220,6 +190,43 @@ fn parse_variable(input: &str) -> PResult<Expr> {
             comment,
         },
     ))
+}
+
+fn parse_mutable_var(input: &str) -> PResult<(String, Option<ValueType>)> {
+    // parse variable name
+    // $ID
+    let (input, var_name) = parse_identifier(input)?;
+
+    // having default value?
+    fn get_value(input: &str) -> PResult<Value> {
+        let (input, _) = space1(input)?;
+        parse_value(input)
+    }
+
+    if let Ok((input, val)) = get_value(input) {
+        Ok((input, (var_name, Some(ValueType::Default(val))))) // having default value
+    } else {
+        Ok((input, (var_name, None))) // no default value
+    }
+}
+
+fn parse_immutable_var(input: &str) -> PResult<(String, Option<ValueType>)> {
+    // parse variable name
+    // $CapitalID
+    let (input, var_name) = parse_captal_identifier(input)?;
+
+    // skip whitespaces
+    let (input, _) = space0(input)?;
+
+    let (input, _) = tag("=")(input)?;
+
+    // skip whitespaces
+    let (input, _) = space0(input)?;
+
+    // parse value
+    let (input, val) = parse_value(input)?;
+
+    Ok((input, (var_name, Some(ValueType::Const(val)))))
 }
 
 /// ```text
@@ -301,6 +308,20 @@ fn parse_identifier(input: &str) -> PResult<String> {
 }
 
 /// ```text
+/// $ID = Regex((_|[A..Z]+)([A..Z0..9]|_)*)
+/// ```
+fn parse_captal_identifier(input: &str) -> PResult<String> {
+    // (_|[A..Z]+)
+    let (input, head) = satisfy(|c| 'A' <= c && c <= 'Z' || c == '_')(input)?;
+
+    // ([A..Z0..9]|_)*
+    let (input, tail) = many0(satisfy(|c| 'A' <= c && c <= 'Z' || c == '_'))(input)?;
+
+    let tail: String = tail.iter().collect();
+    Ok((input, format!("{head}{tail}")))
+}
+
+/// ```text
 /// $Comment = Regex(#.*) $End
 /// ```
 fn parse_comment(input: &str) -> PResult<Expr> {
@@ -332,19 +353,12 @@ fn peek_tag<'a>(c: &'static str, input: &'a str) -> PResult<'a, &'a str> {
     peek(tag(c))(input)
 }
 
-fn peek_next_of(input: &str) -> PResult<char> {
-    peek(alt((one_of("=-\"'[tf"), digit)))(input)
-}
-
-fn digit(input: &str) -> PResult<char> {
-    satisfy(|c| is_digit(c as u8))(input)
-}
-
 /// ```text
-/// $Value = $Bool | $Num | $Array | $String
+/// $Value = $Bool | $Num | $Array | $String | $RawString
 /// $Bool = true | false
 /// $Num = Regex(-?[0..9]+(.[0..9]+)?)
 /// $String = 'characters' | "characters"
+/// $RawString = characters
 /// ```
 fn parse_value(input: &str) -> PResult<Value> {
     alt((
@@ -352,7 +366,7 @@ fn parse_value(input: &str) -> PResult<Value> {
         parse_bool,
         parse_array,
         parse_string,
-        parse_id_value,
+        parse_raw_string,
     ))(input)
 }
 
@@ -490,7 +504,14 @@ fn parse_string(input: &str) -> PResult<Value> {
     }
 }
 
-fn parse_id_value(input: &str) -> PResult<Value> {
-    let (input, id) = parse_identifier(input)?;
-    Ok((input, Value::Id(id)))
+fn parse_raw_string(input: &str) -> PResult<Value> {
+    let (input, result) = many1(satisfy(|c| c != '\r' && c != '\n'))(input)?;
+    result.iter().fold(String::new(), |s, c| match c {
+        '\\' => format!("{s}\\\\"),
+        '"' => format!("{s}\""),
+        _ => format!("{s}{c}"),
+    });
+
+    let result: String = result.iter().collect();
+    Ok((input, Value::String(result)))
 }
