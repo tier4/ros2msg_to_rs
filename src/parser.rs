@@ -506,12 +506,33 @@ fn parse_string(input: &str) -> PResult<Value> {
 
 fn parse_raw_string(input: &str) -> PResult<Value> {
     let (input, result) = many1(satisfy(|c| c != '\r' && c != '\n'))(input)?;
-    result.iter().fold(String::new(), |s, c| match c {
+    let result = result.iter().fold(String::new(), |s, c| match c {
         '\\' => format!("{s}\\\\"),
         '"' => format!("{s}\\\""),
         _ => format!("{s}{c}"),
     });
 
-    let result: String = result.iter().collect();
     Ok((input, Value::String(result)))
+}
+
+#[cfg(test)]
+mod tests {
+    use nom::Finish;
+
+    use super::parse_raw_string;
+
+    #[test]
+    fn test_parse_raw() {
+        let s = "\\";
+        let (_, v) = parse_raw_string(s).finish().unwrap();
+        println!("{v}");
+
+        let s = "\"";
+        let (_, v) = parse_raw_string(s).finish().unwrap();
+        println!("{v}");
+
+        let s = "\\\"";
+        let (_, v) = parse_raw_string(s).finish().unwrap();
+        println!("{v}");
+    }
 }

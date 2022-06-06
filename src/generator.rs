@@ -303,6 +303,24 @@ impl {type_name}Sequence {{
             None
         }}
     }}
+
+    pub fn as_slice(&self) -> Option<&[StdMsg]> {{
+        if self.data.is_null() {{
+            None
+        }} else {{
+            let s = unsafe {{ std::slice::from_raw_parts(self.data, self.size) }};
+            Some(s)
+        }}
+    }}
+
+    pub fn as_slice_mut(&mut self) -> Option<&mut [StdMsg]> {{
+        if self.data.is_null() {{
+            None
+        }} else {{
+            let s = unsafe {{ std::slice::from_raw_parts_mut(self.data, self.size) }};
+            Some(s)
+        }}
+    }}
 }}
 
 impl Drop for {type_name}Sequence {{
