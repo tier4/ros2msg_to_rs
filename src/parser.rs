@@ -508,7 +508,7 @@ fn parse_raw_string(input: &str) -> PResult<Value> {
     let (input, result) = many1(satisfy(|c| c != '\r' && c != '\n'))(input)?;
     result.iter().fold(String::new(), |s, c| match c {
         '\\' => format!("{s}\\\\"),
-        '"' => format!("{s}\""),
+        '"' => format!("{s}\\\""),
         _ => format!("{s}{c}"),
     });
 
