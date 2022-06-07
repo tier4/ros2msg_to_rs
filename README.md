@@ -4,66 +4,81 @@ This is used for [safe_drive](https://github.com/tier4/safe_drive), a Rust bindi
 
 ## Types (Galactic)
 
-| ROS                          | C                                         | Rust      |
-|------------------------------|-------------------------------------------|-----------|
-| bool                         | bool                                      | bool      |
-| int8                         | int8_t                                    | i8        |
-| uint8                        | uint8_t                                   | u8        |
-| int16                        | int16_t                                   | i16       |
-| uint16                       | uint16_t                                  | u16       |
-| int32                        | int32_t                                   | i32       |
-| uint32                       | uint32_t                                  | u32       |
-| int64                        | int64_t                                   | i64       |
-| uint64                       | uint64_t                                  | u64       |
-| float32                      | float                                     | f32       |
-| float64                      | double                                    | f64       |
-| string                       | struct rosidl_runtime_c__String           | (*1)      |
-| time                         | (*2)                                      |           |
-| duration                     | (*2)                                      |           |
-| std_msgs/Empty               | struct std_msgs__msg__Empty               | (*1)      |
-| std_msgs/Bool                | struct std_msgs__msg__Bool                | (*1)      |
-| std_msgs/Byte                | struct std_msgs__msg__Bool                | (*1)      |
-| std_msgs/ByteMultiArray      | struct std_msgs__msg__ByteMultiArray      | (*1)      |
-| std_msgs/Char                | struct std_msgs__msg__Char                | (*1)      |
-| std_msgs/Int8                | struct std_msgs__msg__Int8                | (*1)      |
-| std_msgs/Int8MultiArray      | struct std_msgs__msg__Int8MultiArray      | (*1)      |
-| std_msgs/Int16               | struct std_msgs__msg__Int16               | (*1)      |
-| std_msgs/Int16MultiArray     | struct std_msgs__msg__Int16MultiArray     | (*1)      |
-| std_msgs/Int32               | struct std_msgs__msg__Int32               | (*1)      |
-| std_msgs/Int32MultiArray     | struct std_msgs__msg__Int32MultiArray     | (*1)      |
-| std_msgs/Int64               | struct std_msgs__msg__Int64               | (*1)      |
-| std_msgs/Int64MultiArray     | struct std_msgs__msg__Int64MultiArray     | (*1)      |
-| std_msgs/UInt8               | struct std_msgs__msg__UInt8               | (*1)      |
-| std_msgs/UInt8MultiArray     | struct std_msgs__msg__UInt8MultiArray     | (*1)      |
-| std_msgs/UInt16              | struct std_msgs__msg__UInt16__Sequence    | (*1)      |
-| std_msgs/UInt16MultiArray    | struct std_msgs__msg__UInt16MultiArray    | (*1)      |
-| std_msgs/UInt32              | struct std_msgs__msg__UInt32              | (*1)      |
-| std_msgs/UInt32MultiArray    | struct std_msgs__msg__UInt32MultiArray    | (*1)      |
-| std_msgs/UInt64              | struct std_msgs__msg__UInt64              | (*1)      |
-| std_msgs/UInt64MultiArray    | struct std_msgs__msg__UInt64MultiArray    | (*1)      |
-| std_msgs/Float32             | struct std_msgs__msg__Float32             | (*1)      |
-| std_msgs/Float32MultiArray   | struct std_msgs__msg__Float32MultiArray   | (*1)      |
-| std_msgs/Float64             | struct std_msgs__msg__Float64             | (*1)      |
-| std_msgs/Float64MultiArray   | struct std_msgs__msg__Float64MultiArray   | (*1)      |
-| std_msgs/MultiArrayDimension | struct std_msgs__msg__MultiArrayDimension | (*1)      |
-| std_msgs/MultiArrayLayout    | struct std_msgs__msg__MultiArrayLayout    | (*1)      |
-| std_msgs/String              | struct std_msgs__msg__String              | (*1)      |
-| std_msgs/ColorRGBA           | struct std_msgs__msg__ColorRGBA           | (*1)      |
-| std_msgs/Header              | struct std_msgs__msg__Header              | (*1)      |
-| std_msgs/Duration            | (*2)                                      |           |
-| std_msgs/Time                | (*2)                                      |           |
+| ROS                          | C                                         | Rust                       |
+|------------------------------|-------------------------------------------|----------------------------|
+| bool                         | bool                                      | bool                       |
+| byte                         | uint8_t                                   | u8                         |
+| char                         | char                                      | i8                         |
+| int8                         | int8_t                                    | i8                         |
+| uint8                        | uint8_t                                   | u8                         |
+| int16                        | int16_t                                   | i16                        |
+| uint16                       | uint16_t                                  | u16                        |
+| int32                        | int32_t                                   | i32                        |
+| uint32                       | uint32_t                                  | u32                        |
+| int64                        | int64_t                                   | i64                        |
+| uint64                       | uint64_t                                  | u64                        |
+| float32                      | float                                     | f32                        |
+| float64                      | double                                    | f64                        |
+| string                       | struct rosidl_runtime_c__String           | safe_drive::msg::RosString |
+| builtin_interfaces/*         | struct builtin_interfaces__msg__*         | (*1)                       |
 
 - (*1): Rust's types are automatically generated by C's header files
   - Defined in [safe_drive::msgs](https://github.com/tier4/safe_drive/blob/main/src/msgs.rs).
-- (*2): Could not find in C's header files
 
 ## Array Types
 
-| ROS                          | C                                         | Rust      |
-|------------------------------|-------------------------------------------|-----------|
-| int32[]                      | struct rosidl_runtime_c__int32__Sequence  | (*1)      |
-| int32[<=5]                   | struct rosidl_runtime_c__int32__Sequence  | (*1)      |
-| int32[10]                    | int32_t var[10]                           | [i32; 10] |
+### `uint8` - `uint64` and `int8` - `int64`
+
+| ROS              | C                                         | Rust                       |
+|------------------|-------------------------------------------|----------------------------|
+| int8[]           | struct rosidl_runtime_c__int8__Sequence   | safe_drive::msg::I8Seq<0>  |
+| int8[<=5]        | struct rosidl_runtime_c__int8__Sequence   | safe_drive::msg::I8Seq<5>  |
+| int8[10]         | int8_t var[10]                            | [i8; 10]                   |
+| uint8[]          | struct rosidl_runtime_c__uint8__Sequence  | safe_drive::msg::U8Seq<0>  |
+| uint8[<=5]       | struct rosidl_runtime_c__uint8__Sequence  | safe_drive::msg::U8Seq<5>  |
+| uint8[10]        | uint8_t var[10]                           | [u8; 10]                   |
+
+Other integer types are similar to this.
+
+### Floating point types
+
+| ROS              | C                                         | Rust                       |
+|------------------|-------------------------------------------|----------------------------|
+| float32[]        | struct rosidl_runtime_c__float__Sequence  | safe_drive::msg::F32Seq<0> |
+| float32[<=5]     | struct rosidl_runtime_c__float__Sequence  | safe_drive::msg::F32Seq<5> |
+| float32[10]      | float var[10]                             | [f32; 10]                  |
+| float64[]        | struct rosidl_runtime_c__double__Sequence | safe_drive::msg::F64Seq<0> |
+| float64[<=5]     | struct rosidl_runtime_c__double__Sequence | safe_drive::msg::F64Seq<5> |
+| float64[10]      | double var[10]                            | [f64; 10]                  |
+
+### Boolean type
+
+| ROS              | C                                          | Rust                        |
+|------------------|--------------------------------------------|-----------------------------|
+| bool[]           | struct rosidl_runtime_c__boolean__Sequence | safe_drive::msg::BoolSeq<0> |
+| bool[<=5]        | struct rosidl_runtime_c__boolean__Sequence | safe_drive::msg::BoolSeq<5> |
+| bool[10]         | bool var[10]                               | [bool; 10]                  |
+
+### String type
+
+| ROS              | C                                          | Rust                                |
+|------------------|--------------------------------------------|-------------------------------------|
+| string[]         | struct rosidl_runtime_c__String__Sequence  | safe_drive::msg::StringSeq<0, 0>    |
+| string[<=5]      | struct rosidl_runtime_c__String__Sequence  | safe_drive::msg::StringSeq<0, 5>    |
+| string[10]       | struct rosidl_runtime_c__String var[10]    | [safe_drive::msg::RosString<0>; 10] |
+| string<=5        | struct rosidl_runtime_c__String var        | safe_drive::msg::RosString<5>       |
+| string<=5[<=10]  | struct rosidl_runtime_c__String var[10]    | safe_drive::msg::StringSeq<5, 10>   |
+| string<=5[10]    | struct rosidl_runtime_c__String var[10]    | [safe_drive::msg::RosString<5>; 10] |
+
+Other integer values are same as this.
+
+### builtin_interfaces
+
+| ROS                         | C                                                  | Rust                                             |
+|-----------------------------|----------------------------------------------------|--------------------------------------------------|
+| builtin_interfaces/Duration | struct builtin_interfaces__msg__Duration__Sequence | safe_drive::msg::builtin_interfaces::DurationSeq |
+| builtin_interfaces/Time     | struct builtin_interfaces__msg__Time__Sequence     | safe_drive::msg::builtin_interfaces::TimeSeq     |
+
 
 ## Memo
 
