@@ -9,7 +9,7 @@ pub struct Generator {
     pub libs: BTreeSet<String>,
     lib_name: String,
     safe_drive_path: String,
-    use_common_interfaces: bool,
+    disable_common_interfaces: bool,
 }
 
 #[derive(Debug)]
@@ -19,12 +19,12 @@ pub enum ExprType {
 }
 
 impl Generator {
-    pub fn new(lib_name: String, safe_drive_path: String) -> Self {
+    pub fn new(lib_name: String, safe_drive_path: String, disable_common_interfaces: bool) -> Self {
         Self {
             libs: Default::default(),
             lib_name,
             safe_drive_path,
-            use_common_interfaces: false,
+            disable_common_interfaces,
         }
     }
 
@@ -38,6 +38,12 @@ impl Generator {
         lines.push_back("use super::*;".into());
         lines.push_back("use super::super::super::*;".into());
         lines.push_back(format!("use {}::msg::*;", self.safe_drive_path).into());
+
+        if !self.disable_common_interfaces {
+            lines.push_back(
+                format!("use {}::msg::common_interfaces::*;", self.safe_drive_path).into(),
+            );
+        }
 
         let mut const_val = Vec::new();
         let mut variables = Vec::new();
@@ -87,7 +93,7 @@ impl Generator {
                 value,
                 comment,
             } => {
-                let var_name = mangle(var_name.as_str());
+                let var_name = crate::mangle(var_name.as_str());
                 match value {
                     Some(ValueType::Const(val)) => {
                         let ty = self.gen_const_type(type_name);
@@ -123,7 +129,7 @@ impl Generator {
                 let type_str = if let Some(prim) = gen_primitives(type_name) {
                     prim.to_string()
                 } else {
-                    format!("super::{type_name}")
+                    format!("{type_name}")
                 };
                 self.gen_array_type(None, type_str.into(), array_info)
             }
@@ -144,14 +150,7 @@ impl Generator {
                     type_name.clone()
                 } else {
                     match scope.as_ref() {
-                        // "std_msgs"
-                        "builtin_interfaces"
-                        // | "geometry_msgs"
-                        // | "unique_identifier_msgs"
-                        // | "sensor_msgs"
-                        // | "nav_msgs"
-                        // | "diagnostic_msgs"
-                         => {
+                        "builtin_interfaces" => {
                             format!("{scope}__msg__{type_name}")
                         }
                         _ => {
@@ -226,37 +225,11 @@ impl Generator {
             "f32" => format!("{}::msg::F32Seq<{size}>", self.safe_drive_path).into(),
             "f64" => format!("{}::msg::F64Seq<{size}>", self.safe_drive_path).into(),
             _ => match scope {
-                // Some("std_msgs") => match type_str.as_ref() {
-                //     "Bool" => format!("safe_drive::msg::std_msgs::BoolSeq<{size}>").into(),
-                //     "Byte" => format!("safe_drive::msg::std_msgs::ByteSeq<{size}>").into(),
-                //     "Char" => format!("safe_drive::msg::std_msgs::CharSeq<{size}>").into(),
-                //     "Empty" => format!("safe_drive::msg::std_msgs::EmptySeq<{size}>").into(),
-                //     "ColorRGBA" => format!("safe_drive::msg::std_msgs::ColorRGBASeq<{size}>").into(),
-                //     "Header" => format!("safe_drive::msg::std_msgs::HeaderSeq<{size}>").into(),
-                //     "Int8" => format!("safe_drive::msg::std_msgs::I8Seq<{size}>").into(),
-                //     "int16" => format!("safe_drive::msg::std_msgs::I16Seq<{size}>").into(),
-                //     "Int32" => format!("safe_drive::msg::std_msgs::I32Seq<{size}>").into(),
-                //     "Int64" => format!("safe_drive::msg::std_msgs::I64Seq<{size}>").into(),
-                //     "Uint8" => format!("safe_drive::msg::std_msgs::U8Seq<{size}>").into(),
-                //     "Uint16" => format!("safe_drive::msg::std_msgs::U16Seq<{size}>").into(),
-                //     "Uint32" => format!("safe_drive::msg::std_msgs::U32Seq<{size}>").into(),
-                //     "Uint64" => format!("safe_drive::msg::std_msgs::U64Seq<{size}>").into(),
-                //     "Float32" => format!("safe_drive::msg::std_msgs::F32Seq<{size}>").into(),
-                //     "Float64" => format!("safe_drive::msg::std_msgs::F64Seq<{size}>").into(),
-                //     _ => panic!("unknown type: std_msgs/{type_str}"),
-                // },
                 Some("builtin_interfaces") => format!(
                     "{}::msg::builtin_interfaces::{type_str}Seq",
                     self.safe_drive_path
                 )
                 .into(),
-                // Some(
-                //     "geometry_msgs"
-                //     | "unique_identifier_msgs"
-                //     | "sensor_msgs"
-                //     | "nav_msgs"
-                //     | "diagnostic_msgs",
-                // ) => format!("{type_str}__Sequence").into(),
                 _ => format!("{type_str}Sequence").into(),
             },
         }
@@ -285,15 +258,6 @@ fn gen_primitives(type_name: &str) -> Option<&str> {
         _ => return None,
     };
     Some(t)
-}
-
-pub fn mangle(var_name: &str) -> Cow<'_, str> {
-    match var_name {
-        "type" | "pub" | "fn" | "match" | "if" | "while" | "break" | "continue" | "unsafe"
-        | "async" | "move" | "trait" | "impl" | "for" | "i8" | "u8" | "i16" | "u16" | "i32"
-        | "u32" | "i64" | "u64" | "bool" | "char" => format!("{var_name}_").into(),
-        _ => var_name.into(),
-    }
 }
 
 fn gen_cfun(lines: &mut VecDeque<Cow<'_, str>>, module_name: &str, type_name: &str) {

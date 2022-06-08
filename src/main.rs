@@ -3,6 +3,7 @@ use convert_case::{Case, Casing};
 use generator::Generator;
 use nom::{error::convert_error, Finish};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     error::Error,
     ffi::{OsStr, OsString},
@@ -21,7 +22,7 @@ mod parser;
 struct Args {
     /// Input directory containing .msg and .srv
     #[clap(short, long)]
-    dir: String,
+    input: String,
 
     /// Path to the safe_drive.
     #[clap(short, long, default_value_t = String::from("safe_drive"))]
@@ -33,14 +34,14 @@ struct Args {
 
     /// Disable to use common_interfaces. This option is used to generate common_interfaces used by safe_drive.
     /// So, do not set this option if you are not of the develeper of safe_drive.
-    #[clap(short, long)]
-    common_interfaces: bool,
+    #[clap(long)]
+    disable_common_interfaces: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let project_path = Path::new(&args.dir).canonicalize()?;
+    let project_path = Path::new(&args.input).canonicalize()?;
     let project_name = project_path.file_name().unwrap();
 
     // destination directory
@@ -50,7 +51,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         Path::new(&args.out).to_path_buf()
     };
 
-    let mod_dirs = generate_msgs(&target, &project_path, &args.safe_drive)?;
+    let mod_dirs = generate_msgs(
+        &target,
+        &project_path,
+        &args.safe_drive,
+        args.disable_common_interfaces,
+    )?;
     generate_mod_rs(&target, &mod_dirs)?;
 
     Ok(())
@@ -81,6 +87,7 @@ fn generate_msgs(
     target: &PathBuf,
     src: &PathBuf,
     safe_drive_path: &str,
+    disable_common_interfaces: bool,
 ) -> Result<BTreeMap<PathBuf, BTreeSet<String>>, Box<dyn Error>> {
     let mut mod_name = OsString::new();
     let mut modules = BTreeMap::new();
@@ -116,6 +123,7 @@ fn generate_msgs(
                                 let mut g = Generator::new(
                                     mod_name.to_str().unwrap().to_string(),
                                     safe_drive_path.to_string(),
+                                    disable_common_interfaces,
                                 );
                                 let lines =
                                     g.gen_msg(mod_name.to_str().unwrap(), type_name, &result);
@@ -138,7 +146,7 @@ fn generate_msgs(
 
                                 // generate {target}/{mod_name}/msg/{snake_type_name}.rs
                                 let sname = type_name.to_case(Case::Snake);
-                                let snake_type_name = generator::mangle(&sname);
+                                let snake_type_name = mangle(&sname);
 
                                 let mod_file = format!("{snake_type_name}.rs");
                                 let target_file = target_dir.join(mod_file);
@@ -201,6 +209,15 @@ fn generate_msg_rs(modules: &[String], target_dir: &Path) -> Result<(), Box<dyn 
     }
 
     Ok(())
+}
+
+pub fn mangle(var_name: &str) -> Cow<'_, str> {
+    match var_name {
+        "type" | "pub" | "fn" | "match" | "if" | "while" | "break" | "continue" | "unsafe"
+        | "async" | "move" | "trait" | "impl" | "for" | "i8" | "u8" | "i16" | "u16" | "i32"
+        | "u32" | "i64" | "u64" | "bool" | "char" => format!("{var_name}_").into(),
+        _ => var_name.into(),
+    }
 }
 
 #[cfg(test)]
@@ -271,7 +288,7 @@ std_msgs/Header std3
     }
 
     fn generate(input: &str) {
-        let mut g = Generator::new("my_library".to_string(), "crate".to_string());
+        let mut g = Generator::new("my_library".to_string(), "crate".to_string(), false);
         let (_, exprs) = parser::parse_msg(input).finish().unwrap();
         g.gen_msg("TestModule", "TestMsg", &exprs);
     }
