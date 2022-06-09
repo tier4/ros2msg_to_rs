@@ -38,6 +38,7 @@ impl Generator {
         lines.push_back("use super::*;".into());
         lines.push_back("use super::super::super::*;".into());
         lines.push_back(format!("use {}::msg::*;", self.safe_drive_path).into());
+        lines.push_back(format!("use {}::rcl;", self.safe_drive_path).into());
 
         if !self.disable_common_interfaces {
             lines.push_back(
@@ -268,6 +269,7 @@ extern \"C\" {{
     fn {module_name}__msg__{type_name}__fini(msg: *mut {type_name});
     fn {module_name}__msg__{type_name}__Sequence__init(msg: *mut {type_name}Sequence, size: usize) -> bool;
     fn {module_name}__msg__{type_name}__Sequence__fini(msg: *mut {type_name}Sequence);
+    fn rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}() -> *const rcl::rosidl_message_type_support_t;
 }}
 "
     );
@@ -292,6 +294,14 @@ impl {type_name} {{
 impl Drop for {type_name} {{
     fn drop(&mut self) {{
         unsafe {{ {module_name}__msg__{type_name}__fini(self) }};
+    }}
+}}
+
+impl TopicMsg for {type_name} {{
+    fn type_support() -> *const rcl::rosidl_message_type_support_t {{
+        unsafe {{
+            rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}()
+        }}
     }}
 }}
 
