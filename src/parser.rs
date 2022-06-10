@@ -1,3 +1,37 @@
+//! # Grammar
+//!
+//! ```text
+//! $Expr = $Empty | $Comment | $VarDef
+//!
+//! $Empty | $Comment | $VarDef
+//!
+//! $VarDef = $Variable $Comment $End | $Variable $End
+//! $Variable = $TypeName $ID | $TypeName $CapitalID = $Value | $TypeName $ID $Value
+//! $TypeName =
+//!     string<=$PlusNum |
+//!     string<=$PlusNum $ArrayInfo |
+//!     $ID/$ID $ArrayInfo |
+//!     $ID/$ID |
+//!     $ID $ArrayInfo |
+//!     $ID
+//! $ArrayInfo = [] | [$PlusNum] | [<=$PlusNum]
+//! $PlusNum = Regex([0..9]+)
+//!
+//! $Comment = Regex(#.*) $End
+//!
+//! $ID = Regex((_|[a..zA..Z]+)([a..zA..Z0..9]|_)*)
+//! $CapitalID = Regex((_|[A..Z]+)([A..Z0..9]|_)*)
+//!
+//! $Value = $Bool | $Num | $Array | $String | $RawString
+//! $Bool = true | false
+//! $Num = Regex(-?[0..9]+(.[0..9]+)?)
+//! $String = 'characters' | "characters"
+//! $RawString = characters
+//!
+//! $Array = [ $Elements ]
+//! $Elements = $Value | $Value , $Elements
+//! ```
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -112,36 +146,44 @@ pub fn parse_msg(mut input: &str) -> PResult<Vec<Expr>> {
     Ok((input, result))
 }
 
+pub fn parse_srv(mut input: &str) -> PResult<(Vec<Expr>, Vec<Expr>)> {
+    // parse request
+    let mut request = Vec::new();
+    loop {
+        if peek_tag("---", input).is_ok() {
+            break;
+        }
+
+        let (next, expr) = parse_expr(input)?;
+        input = next;
+
+        if let Expr::Variable { .. } = &expr {
+            request.push(expr);
+        }
+    }
+
+    let (mut input, _) = tag("---")(input)?;
+
+    // parse response
+    let mut response = Vec::new();
+    loop {
+        if input.is_empty() {
+            break;
+        }
+
+        let (next, expr) = parse_expr(input)?;
+        input = next;
+
+        if let Expr::Variable { .. } = &expr {
+            response.push(expr);
+        }
+    }
+
+    Ok(("", (request, response)))
+}
+
 /// ```text
 /// $Expr = $Empty | $Comment | $VarDef
-///
-/// $Empty | $Comment | $VarDef
-///
-/// $VarDef = $Variable $Comment $End | $Variable $End
-/// $Variable = $TypeName $ID | $TypeName $CapitalID = $Value | $TypeName $ID $Value
-/// $TypeName =
-///     string<=$PlusNum |
-///     string<=$PlusNum $ArrayInfo |
-///     $ID/$ID $ArrayInfo |
-///     $ID/$ID |
-///     $ID $ArrayInfo |
-///     $ID
-/// $ArrayInfo = [] | [$PlusNum] | [<=$PlusNum]
-/// $PlusNum = Regex([0..9]+)
-///
-/// $Comment = Regex(#.*) $End
-///
-/// $ID = Regex((_|[a..zA..Z]+)([a..zA..Z0..9]|_)*)
-/// $CapitalID = Regex((_|[A..Z]+)([A..Z0..9]|_)*)
-///
-/// $Value = $Bool | $Num | $Array | $String | $RawString
-/// $Bool = true | false
-/// $Num = Regex(-?[0..9]+(.[0..9]+)?)
-/// $String = 'characters' | "characters"
-/// $RawString = characters
-///
-/// $Array = [ $Elements ]
-/// $Elements = $Value | $Value , $Elements
 /// ```
 fn parse_expr(input: &str) -> PResult<Expr> {
     let (input, _) = space0(input)?;

@@ -1,10 +1,37 @@
+//! ros2msg_to_rs generates Rust files from ROS 2's .msg and .srv files.
+//!
+//! # How to use
+//!
+//! ## Step 1. Prepare .msg and .srv files
+//!
+//! ```text
+//! $ mkdir src
+//! $ mkdir src/my_module
+//! $ mkdir src/my_module/msg
+//! $ vi src/my_module/msg/example.msg
+//! $ vi src/my_module/srv/example.srv
+//! ```
+//!
+//! ## Step 2. Generate
+//!
+//! ```text
+//! $ ros2msg_to_rs -i src -o target
+//! $ ls target/module
+//! mod.rs    msg.rs    srv.rs
+//! ```
+//!
+//! `-i` is the input directory and `-o` is the output directory.
+//! ros2msg_to_rs assumess the first first directories are modules.
+//! If there is `src/my_module` and specify `-i src`,
+//! ros2msg_to_rs assumes the `my_module` is a module.
+
 use clap::Parser;
 use convert_case::{Case, Casing};
 use generator::Generator;
 use nom::{error::convert_error, Finish};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     error::Error,
     ffi::{OsStr, OsString},
     fs::{create_dir_all, File},
@@ -66,19 +93,27 @@ fn generate_mod_rs(
     target: &PathBuf,
     mod_dirs: &BTreeMap<PathBuf, BTreeSet<String>>,
 ) -> Result<(), Box<dyn Error>> {
+    // create {target}/mod.rs
     let mod_rs_path = target.join("mod.rs");
     println!("generating: {}", mod_rs_path.display());
     let mut mod_rs = File::create(mod_rs_path)?;
-    for (m, _) in mod_dirs.iter() {
+    for (m, val) in mod_dirs.iter() {
         mod_rs.write_fmt(format_args!(
             "pub mod {};\n",
             m.file_name().unwrap().to_str().unwrap()
         ))?;
 
+        // create {target}/{module}/mod.rs
         let mod_rs_in_path = m.join("mod.rs");
         println!("generating: {}", mod_rs_in_path.display());
         let mut mod_rs_in = File::create(mod_rs_in_path)?;
-        mod_rs_in.write_fmt(format_args!("pub mod msg;\n"))?;
+
+        for s in val {
+            mod_rs_in.write_fmt(format_args!("pub mod {s};\n"))?;
+            if s == "msg" {
+                mod_rs_in.write_fmt(format_args!("use msg::*;\n"))?;
+            }
+        }
     }
     Ok(())
 }
@@ -90,7 +125,8 @@ fn generate_msgs(
     disable_common_interfaces: bool,
 ) -> Result<BTreeMap<PathBuf, BTreeSet<String>>, Box<dyn Error>> {
     let mut mod_name = OsString::new();
-    let mut modules = BTreeMap::new();
+    let mut modules_msg = BTreeMap::new();
+    let mut modules_srv = BTreeMap::new();
     let mut mod_dirs: BTreeMap<PathBuf, BTreeSet<String>> = BTreeMap::new();
 
     // traverse directory
@@ -107,7 +143,7 @@ fn generate_msgs(
 
             // transpile .msg file
             if let Some(ext) = p.extension() {
-                if ext == "msg" {
+                if ext == "msg" || ext == "srv" {
                     if let Some(type_name) = p.file_name() {
                         let v: Vec<&str> = type_name.to_str().unwrap().split('.').collect();
                         let type_name = v.get(0).unwrap();
@@ -116,59 +152,65 @@ fn generate_msgs(
                         let mut contents = String::new();
                         f.read_to_string(&mut contents)?;
 
-                        // parse .msg file
-                        match parser::parse_msg(&contents).finish() {
-                            Ok((_, result)) => {
-                                // generate Rust code
-                                let mut g = Generator::new(
-                                    mod_name.to_str().unwrap().to_string(),
-                                    safe_drive_path.to_string(),
-                                    disable_common_interfaces,
-                                );
-                                let lines =
-                                    g.gen_msg(mod_name.to_str().unwrap(), type_name, &result);
+                        // generate Rust code
+                        let mut g = Generator::new(
+                            mod_name.to_str().unwrap().to_string(),
+                            safe_drive_path.to_string(),
+                            disable_common_interfaces,
+                        );
 
-                                // "{target}/{mod_name}"
-                                let mod_dir = target.join(mod_name.to_str().unwrap());
+                        let module_name = mod_name.to_str().unwrap();
 
-                                if let Some(libs) = mod_dirs.get_mut(&mod_dir) {
-                                    *libs = libs.union(&g.libs).cloned().collect();
-                                } else {
-                                    mod_dirs.insert(mod_dir.clone(), g.libs);
-                                }
+                        let lines = if ext == "msg" {
+                            generate_msg(&mut g, &contents, &path, module_name, type_name)?
+                        } else {
+                            generate_srv(&mut g, &contents, &path, module_name, type_name)?
+                        };
 
-                                // module's directory
-                                // "target/{mod_name}/msg"
-                                let target_dir = mod_dir.join("msg");
+                        // "{target}/{mod_name}"
+                        let mod_dir = target.join(mod_name.to_str().unwrap());
 
-                                // create directory
-                                create_dir_all(&target_dir)?;
+                        if let Some(mods) = mod_dirs.get_mut(&mod_dir) {
+                            mods.insert(ext.to_str().unwrap().to_string());
+                        } else {
+                            let mut mods = BTreeSet::new();
+                            mods.insert(ext.to_str().unwrap().to_string());
+                            mod_dirs.insert(mod_dir.clone(), mods);
+                        }
 
-                                // generate {target}/{mod_name}/msg/{snake_type_name}.rs
-                                let sname = type_name.to_case(Case::Snake);
-                                let snake_type_name = mangle(&sname);
+                        // module's directory
+                        // {target}/{mod_name}/(msg|srv)
+                        let target_dir = if ext == "msg" {
+                            mod_dir.join("msg")
+                        } else {
+                            mod_dir.join("srv")
+                        };
 
-                                let mod_file = format!("{snake_type_name}.rs");
-                                let target_file = target_dir.join(mod_file);
+                        // create directory
+                        create_dir_all(&target_dir)?;
 
-                                add_modules(
-                                    &mut modules,
-                                    mod_dir.as_os_str(),
-                                    snake_type_name.to_string(),
-                                );
+                        // generate {target}/{mod_name}/(msg|srv)/{snake_type_name}.rs
+                        let sname = type_name.to_case(Case::Snake);
+                        let snake_type_name = mangle(&sname);
 
-                                let mut w = File::create(&target_file)?;
+                        let mod_file = format!("{snake_type_name}.rs");
+                        let target_file = target_dir.join(mod_file);
 
-                                println!("generating: {}", target_file.display());
-                                for line in lines {
-                                    w.write_fmt(format_args!("{}\n", line))?;
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("{}", convert_error(contents.as_str(), e));
-                                let msg = format!("failed to parse: {}", path.path().display());
-                                return Err(msg.into());
-                            }
+                        add_modules(
+                            if ext == "msg" {
+                                &mut modules_msg
+                            } else {
+                                &mut modules_srv
+                            },
+                            mod_dir.as_os_str(),
+                            snake_type_name.to_string(),
+                        );
+
+                        let mut w = File::create(&target_file)?;
+
+                        println!("generating: {}", target_file.display());
+                        for line in lines {
+                            w.write_fmt(format_args!("{}\n", line))?;
                         }
                     }
                 }
@@ -176,11 +218,51 @@ fn generate_msgs(
         }
     }
 
-    for (k, v) in modules {
-        generate_msg_rs(&v, Path::new(&k))?;
+    for (k, v) in modules_msg {
+        generate_msg_srv_rs(&v, &Path::new(&k).join("msg.rs"))?;
+    }
+
+    for (k, v) in modules_srv {
+        generate_msg_srv_rs(&v, &Path::new(&k).join("srv.rs"))?;
     }
 
     Ok(mod_dirs)
+}
+
+fn generate_msg<'a>(
+    generator: &mut Generator,
+    contents: &str,
+    path: &walkdir::DirEntry,
+    module_name: &'a str,
+    type_name: &'a str,
+) -> Result<VecDeque<Cow<'a, str>>, Box<dyn Error>> {
+    match parser::parse_msg(&contents).finish() {
+        Ok((_, exprs)) => Ok(generator.gen_msg(module_name, type_name, &exprs)),
+        Err(e) => {
+            eprintln!("{}", convert_error(contents, e));
+            let msg = format!("failed to parse: {}", path.path().display());
+            return Err(msg.into());
+        }
+    }
+}
+
+fn generate_srv<'a>(
+    generator: &mut Generator,
+    contents: &str,
+    path: &walkdir::DirEntry,
+    module_name: &'a str,
+    type_name: &'a str,
+) -> Result<VecDeque<Cow<'a, str>>, Box<dyn Error>> {
+    match parser::parse_srv(&contents).finish() {
+        Ok((_, (exprs_req, exprs_resp))) => {
+            Ok(generator.gen_srv(module_name, type_name, &exprs_req, &exprs_resp))
+        }
+        Err(e) => {
+            eprintln!("{}", convert_error(contents, e));
+            let msg = format!("failed to parse: {}", path.path().display());
+            return Err(msg.into());
+        }
+    }
 }
 
 fn add_modules(map: &mut BTreeMap<OsString, Vec<String>>, key: &OsStr, value: String) {
@@ -192,8 +274,7 @@ fn add_modules(map: &mut BTreeMap<OsString, Vec<String>>, key: &OsStr, value: St
     }
 }
 
-fn generate_msg_rs(modules: &[String], target_dir: &Path) -> Result<(), Box<dyn Error>> {
-    let target_file = target_dir.join("msg.rs");
+fn generate_msg_srv_rs(modules: &[String], target_file: &PathBuf) -> Result<(), Box<dyn Error>> {
     let mut w = File::create(&target_file)?;
 
     println!("generating: {}", target_file.display());
