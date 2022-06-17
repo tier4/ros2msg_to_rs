@@ -509,6 +509,10 @@ impl Drop for {type_name_full}Sequence {{
     fn drop(&mut self) {{
         unsafe {{ {module_name}__{mid}__{type_name}{c_func_mid}__Sequence__fini(self) }};
     }}
-}}"
+}}
+
+unsafe impl Send for {type_name_full}Sequence {{}}
+unsafe impl Sync for {type_name_full}Sequence {{}}
+"
     )
 }
