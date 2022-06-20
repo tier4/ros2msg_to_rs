@@ -309,11 +309,11 @@ impl Generator {
             "f64" => format!("{}::msg::F64Seq<{size}>", self.safe_drive_path).into(),
             _ => match scope {
                 Some("builtin_interfaces") => format!(
-                    "{}::msg::builtin_interfaces::{type_str}Seq",
+                    "{}::msg::builtin_interfaces::{type_str}Seq<{size}>",
                     self.safe_drive_path
                 )
                 .into(),
-                _ => format!("{type_str}Sequence").into(),
+                _ => format!("{type_str}Seq<{size}>").into(),
             },
         }
     }
@@ -349,8 +349,8 @@ fn gen_cfun_msg(lines: &mut VecDeque<Cow<'_, str>>, module_name: &str, type_name
 extern \"C\" {{
     fn {module_name}__msg__{type_name}__init(msg: *mut {type_name}) -> bool;
     fn {module_name}__msg__{type_name}__fini(msg: *mut {type_name});
-    fn {module_name}__msg__{type_name}__Sequence__init(msg: *mut {type_name}Sequence, size: usize) -> bool;
-    fn {module_name}__msg__{type_name}__Sequence__fini(msg: *mut {type_name}Sequence);
+    fn {module_name}__msg__{type_name}__Sequence__init(msg: *mut {type_name}SeqRaw, size: usize) -> bool;
+    fn {module_name}__msg__{type_name}__Sequence__fini(msg: *mut {type_name}SeqRaw);
     fn rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}() -> *const rcl::rosidl_message_type_support_t;
 }}
 "
@@ -364,12 +364,12 @@ fn gen_cfun_srv(lines: &mut VecDeque<Cow<'_, str>>, module_name: &str, type_name
 extern \"C\" {{
     fn {module_name}__srv__{type_name}_Request__init(msg: *mut {type_name}Request) -> bool;
     fn {module_name}__srv__{type_name}_Request__fini(msg: *mut {type_name}Request);
-    fn {module_name}__srv__{type_name}_Request__Sequence__init(msg: *mut {type_name}RequestSequence, size: usize) -> bool;
-    fn {module_name}__srv__{type_name}_Request__Sequence__fini(msg: *mut {type_name}RequestSequence);
+    fn {module_name}__srv__{type_name}_Request__Sequence__init(msg: *mut {type_name}RequestSeqRaw, size: usize) -> bool;
+    fn {module_name}__srv__{type_name}_Request__Sequence__fini(msg: *mut {type_name}RequestSeqRaw);
     fn {module_name}__srv__{type_name}_Response__init(msg: *mut {type_name}Response) -> bool;
     fn {module_name}__srv__{type_name}_Response__fini(msg: *mut {type_name}Response);
-    fn {module_name}__srv__{type_name}_Response__Sequence__init(msg: *mut {type_name}ResponseSequence, size: usize) -> bool;
-    fn {module_name}__srv__{type_name}_Response__Sequence__fini(msg: *mut {type_name}ResponseSequence);
+    fn {module_name}__srv__{type_name}_Response__Sequence__init(msg: *mut {type_name}ResponseSeqRaw, size: usize) -> bool;
+    fn {module_name}__srv__{type_name}_Response__Sequence__fini(msg: *mut {type_name}ResponseSeqRaw);
     fn rosidl_typesupport_c__get_service_type_support_handle__{module_name}__srv__{type_name}() -> *const rcl::rosidl_service_type_support_t;
 }}
 "
@@ -468,19 +468,37 @@ impl Drop for {type_name_full} {{
     }}
 }}
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct {type_name_full}Sequence {{
+
+struct {type_name_full}SeqRaw {{
     data: *mut {type_name_full},
     size: usize,
     capacity: usize,
 }}
 
-impl {type_name_full}Sequence {{
+/// Sequence of {type_name_full}.
+/// `N` is the maximum number of elements.
+/// If `N` is `0`, the size is unlimited.
+#[repr(C)]
+#[derive(Debug)]
+pub struct {type_name_full}Seq<const N: usize> {{
+    data: *mut {type_name_full},
+    size: usize,
+    capacity: usize,
+}}
+
+impl<const N: usize> {type_name_full}Seq<N> {{
+    /// Create a sequence of.
+    /// `N` represents the maximum number of elements.
+    /// If `N` is `0`, the sequence is unlimited.
     pub fn new(size: usize) -> Option<Self> {{
-        let mut msg: Self = unsafe {{ std::mem::MaybeUninit::zeroed().assume_init() }};
+        if N != 0 && size >= N {{
+            // the size exceeds in the maximum number
+            return None;
+        }}
+
+        let mut msg: {type_name_full}SeqRaw = unsafe {{ std::mem::MaybeUninit::zeroed().assume_init() }};
         if unsafe {{ {module_name}__{mid}__{type_name}{c_func_mid}__Sequence__init(&mut msg, size) }} {{
-            Some(msg)
+            Some(Self {{data: msg.data, size: msg.size, capacity: msg.capacity }})
         }} else {{
             None
         }}
@@ -505,14 +523,15 @@ impl {type_name_full}Sequence {{
     }}
 }}
 
-impl Drop for {type_name_full}Sequence {{
+impl<const N: usize> Drop for {type_name_full}Seq<N> {{
     fn drop(&mut self) {{
-        unsafe {{ {module_name}__{mid}__{type_name}{c_func_mid}__Sequence__fini(self) }};
+        let mut msg = {type_name_full}SeqRaw{{data: self.data, size: self.size, capacity: self.capacity}};
+        unsafe {{ {module_name}__{mid}__{type_name}{c_func_mid}__Sequence__fini(&mut msg) }};
     }}
 }}
 
-unsafe impl Send for {type_name_full}Sequence {{}}
-unsafe impl Sync for {type_name_full}Sequence {{}}
+unsafe impl<const N: usize> Send for {type_name_full}Seq<N> {{}}
+unsafe impl<const N: usize> Sync for {type_name_full}Seq<N> {{}}
 "
     )
 }
