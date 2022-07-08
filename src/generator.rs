@@ -130,7 +130,7 @@ impl Generator {
         let mut variables = Vec::new();
 
         for expr in exprs.iter() {
-            match self.gen_expr(expr, module_name) {
+            match self.gen_expr(expr, type_name) {
                 ExprType::Const(val) => const_val.push(val),
                 ExprType::Variable(val) => variables.push(val),
             }
