@@ -47,14 +47,14 @@ impl Generator {
         let mut var_resp = Vec::new();
 
         for expr in exprs_req.iter() {
-            match self.gen_expr(expr) {
+            match self.gen_expr(expr, type_name) {
                 ExprType::Const(val) => const_val.push(val),
                 ExprType::Variable(val) => var_req.push(val),
             }
         }
 
         for expr in exprs_resp.iter() {
-            match self.gen_expr(expr) {
+            match self.gen_expr(expr, type_name) {
                 ExprType::Const(val) => const_val.push(val),
                 ExprType::Variable(val) => var_resp.push(val),
             }
@@ -130,7 +130,7 @@ impl Generator {
         let mut variables = Vec::new();
 
         for expr in exprs.iter() {
-            match self.gen_expr(expr) {
+            match self.gen_expr(expr, module_name) {
                 ExprType::Const(val) => const_val.push(val),
                 ExprType::Variable(val) => variables.push(val),
             }
@@ -168,7 +168,7 @@ impl Generator {
         lines
     }
 
-    fn gen_expr(&mut self, expr: &Expr) -> ExprType {
+    fn gen_expr(&mut self, expr: &Expr, msg_type_name: &str) -> ExprType {
         match expr {
             Expr::Variable {
                 type_name,
@@ -179,7 +179,7 @@ impl Generator {
                 let var_name = crate::mangle(var_name.as_str());
                 match value {
                     Some(ValueType::Const(val)) => {
-                        let ty = self.gen_const_type(type_name);
+                        let ty = self.gen_const_type(type_name, msg_type_name);
                         let v = gen_value(val);
                         let result = if let Some(c) = comment {
                             format!("pub const {var_name}: {ty} = {v}; //{c}",)
@@ -189,7 +189,7 @@ impl Generator {
                         ExprType::Const(result)
                     }
                     _ => {
-                        let ty = self.gen_type(type_name);
+                        let ty = self.gen_type(type_name, msg_type_name);
                         let result = if let Some(c) = comment {
                             format!("    pub {var_name}: {ty}, //{c}")
                         } else {
@@ -203,7 +203,7 @@ impl Generator {
         }
     }
 
-    fn gen_type(&mut self, type_name: &'_ TypeName) -> Cow<'_, str> {
+    fn gen_type(&mut self, type_name: &'_ TypeName, msg_type_name: &str) -> Cow<'_, str> {
         match type_name {
             TypeName::Type {
                 type_name,
@@ -214,7 +214,7 @@ impl Generator {
                 } else {
                     format!("{type_name}")
                 };
-                self.gen_array_type(None, type_str.into(), array_info)
+                self.gen_array_type(None, type_str.into(), array_info, msg_type_name)
             }
             TypeName::String(array_info) => {
                 let type_str = format!("{}::msg::RosString<0>", self.safe_drive_path);
@@ -234,7 +234,15 @@ impl Generator {
                 } else {
                     match scope.as_ref() {
                         "builtin_interfaces" => {
-                            format!("{scope}__msg__{type_name}")
+                            println!(
+                                "Warning: {}::{msg_type_name} uses builtin_interfaces::{type_name} which causes the year-2038 problem.",
+                                self.lib_name
+                            );
+                            match type_name.as_ref() {
+                                "Time" => "builtin_interfaces::UnsafeTime".into(),
+                                "Duration" => "builtin_interfaces::UnsafeDuration".into(),
+                                _ => panic!("unsupported type: builtin_interfaces::{type_name}"),
+                            }
                         }
                         _ => {
                             self.libs.insert(scope.clone());
@@ -243,7 +251,12 @@ impl Generator {
                     }
                 };
 
-                let arr = self.gen_array_type(Some(scope.as_str()), type_str.into(), array_info);
+                let arr = self.gen_array_type(
+                    Some(scope.as_str()),
+                    type_str.into(),
+                    array_info,
+                    msg_type_name,
+                );
                 arr.into_owned().into()
             }
         }
@@ -254,10 +267,11 @@ impl Generator {
         scope: Option<&str>,
         type_str: Cow<'a, str>,
         array_info: &ArrayInfo,
+        type_name: &str,
     ) -> Cow<'a, str> {
         match array_info {
-            ArrayInfo::Dynamic => self.gen_seq_type(scope, type_str, 0).into(),
-            ArrayInfo::Limited(n) => self.gen_seq_type(scope, type_str, *n).into(),
+            ArrayInfo::Dynamic => self.gen_seq_type(scope, type_str, 0, type_name).into(),
+            ArrayInfo::Limited(n) => self.gen_seq_type(scope, type_str, *n, type_name).into(),
             ArrayInfo::Static(n) => format!("[{type_str}; {n}]").into(),
             ArrayInfo::NotArray => type_str.into(),
         }
@@ -281,11 +295,11 @@ impl Generator {
         }
     }
 
-    fn gen_const_type(&mut self, type_name: &'_ TypeName) -> Cow<'_, str> {
+    fn gen_const_type(&mut self, type_name: &'_ TypeName, msg_type_name: &str) -> Cow<'_, str> {
         if let TypeName::String(array_info) = type_name {
-            self.gen_array_type(None, "&[u8]".into(), array_info)
+            self.gen_array_type(None, "&[u8]".into(), array_info, msg_type_name)
         } else {
-            self.gen_type(type_name)
+            self.gen_type(type_name, msg_type_name)
         }
     }
 
@@ -294,6 +308,7 @@ impl Generator {
         scope: Option<&str>,
         type_str: Cow<'a, str>,
         size: usize,
+        type_name: &str,
     ) -> Cow<'a, str> {
         match type_str.as_ref() {
             "bool" => format!("{}::msg::BoolSeq<{size}>", self.safe_drive_path).into(),
@@ -308,11 +323,26 @@ impl Generator {
             "f32" => format!("{}::msg::F32Seq<{size}>", self.safe_drive_path).into(),
             "f64" => format!("{}::msg::F64Seq<{size}>", self.safe_drive_path).into(),
             _ => match scope {
-                Some("builtin_interfaces") => format!(
-                    "{}::msg::builtin_interfaces::{type_str}Seq<{size}>",
-                    self.safe_drive_path
-                )
-                .into(),
+                Some("builtin_interfaces") => {
+                    println!(
+                        "Warning: {}::{type_name} uses builtin_interfaces::{type_str} which causes the year-2038 problem.",
+                        self.lib_name
+                    );
+
+                    match type_str.as_ref() {
+                        "Time" => format!(
+                            "{}::msg::builtin_interfaces::UnsafeTimeSeq<{size}>",
+                            self.safe_drive_path
+                        )
+                        .into(),
+                        "Duration" => format!(
+                            "{}::msg::builtin_interfaces::UnsafeDurationSeq<{size}>",
+                            self.safe_drive_path
+                        )
+                        .into(),
+                        _ => panic!("unsupported type: builtin_interfaces::{type_str}"),
+                    }
+                }
                 _ => format!("{type_str}Seq<{size}>").into(),
             },
         }

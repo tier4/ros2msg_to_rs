@@ -2,7 +2,7 @@
 name = "ros2msg_to_rs"
 version = "0.1.0"
 edition = "2021"
-author = "Yuuki Takano <yuuki.takano@tier4.jp>"
+authors = ["Yuuki Takano <yuuki.takano@tier4.jp>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
