@@ -498,7 +498,8 @@ impl Drop for {type_name_full} {{
     }}
 }}
 
-
+#[repr(C)]
+#[derive(Debug)]
 struct {type_name_full}SeqRaw {{
     data: *mut {type_name_full},
     size: usize,
