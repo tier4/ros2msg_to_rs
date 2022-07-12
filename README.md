@@ -32,55 +32,74 @@ This is used for [safe_drive](https://github.com/tier4/safe_drive), a Rust bindi
 
 ### `uint8` - `uint64` and `int8` - `int64`
 
-| ROS              | C                                         | Rust                       |
-|------------------|-------------------------------------------|----------------------------|
-| int8[]           | struct rosidl_runtime_c__int8__Sequence   | safe_drive::msg::I8Seq<0>  |
-| int8[<=5]        | struct rosidl_runtime_c__int8__Sequence   | safe_drive::msg::I8Seq<5>  |
-| int8[10]         | int8_t var[10]                            | [i8; 10]                   |
-| uint8[]          | struct rosidl_runtime_c__uint8__Sequence  | safe_drive::msg::U8Seq<0>  |
-| uint8[<=5]       | struct rosidl_runtime_c__uint8__Sequence  | safe_drive::msg::U8Seq<5>  |
-| uint8[10]        | uint8_t var[10]                           | [u8; 10]                   |
+```rust
+use safe_drive::msg;
+```
 
-Other integer types are similar to this.
+| ROS              | C                                         | Rust           |
+|------------------|-------------------------------------------|----------------|
+| int8[]           | struct rosidl_runtime_c__int8__Sequence   | msg::I8Seq<0>  |
+| int8[<=5]        | struct rosidl_runtime_c__int8__Sequence   | msg::I8Seq<5>  |
+| int8[10]         | int8_t var[10]                            | [i8; 10]       |
+| uint8[]          | struct rosidl_runtime_c__uint8__Sequence  | msg::U8Seq<0>  |
+| uint8[<=5]       | struct rosidl_runtime_c__uint8__Sequence  | msg::U8Seq<5>  |
+| uint8[10]        | uint8_t var[10]                           | [u8; 10]       |
+
+Other integer types are similar to these types.
 
 ### Floating point types
 
-| ROS              | C                                         | Rust                       |
-|------------------|-------------------------------------------|----------------------------|
-| float32[]        | struct rosidl_runtime_c__float__Sequence  | safe_drive::msg::F32Seq<0> |
-| float32[<=5]     | struct rosidl_runtime_c__float__Sequence  | safe_drive::msg::F32Seq<5> |
-| float32[10]      | float var[10]                             | [f32; 10]                  |
-| float64[]        | struct rosidl_runtime_c__double__Sequence | safe_drive::msg::F64Seq<0> |
-| float64[<=5]     | struct rosidl_runtime_c__double__Sequence | safe_drive::msg::F64Seq<5> |
-| float64[10]      | double var[10]                            | [f64; 10]                  |
+```rust
+use safe_drive::msg;
+```
+
+| ROS              | C                                         | Rust           |
+|------------------|-------------------------------------------|----------------|
+| float32[]        | struct rosidl_runtime_c__float__Sequence  | msg::F32Seq<0> |
+| float32[<=5]     | struct rosidl_runtime_c__float__Sequence  | msg::F32Seq<5> |
+| float32[10]      | float var[10]                             | [f32; 10]      |
+| float64[]        | struct rosidl_runtime_c__double__Sequence | msg::F64Seq<0> |
+| float64[<=5]     | struct rosidl_runtime_c__double__Sequence | msg::F64Seq<5> |
+| float64[10]      | double var[10]                            | [f64; 10]      |
 
 ### Boolean type
 
-| ROS              | C                                          | Rust                        |
-|------------------|--------------------------------------------|-----------------------------|
-| bool[]           | struct rosidl_runtime_c__boolean__Sequence | safe_drive::msg::BoolSeq<0> |
-| bool[<=5]        | struct rosidl_runtime_c__boolean__Sequence | safe_drive::msg::BoolSeq<5> |
-| bool[10]         | bool var[10]                               | [bool; 10]                  |
+```rust
+use safe_drive::msg;
+```
+
+| ROS              | C                                          | Rust            |
+|------------------|--------------------------------------------|-----------------|
+| bool[]           | struct rosidl_runtime_c__boolean__Sequence | msg::BoolSeq<0> |
+| bool[<=5]        | struct rosidl_runtime_c__boolean__Sequence | msg::BoolSeq<5> |
+| bool[10]         | bool var[10]                               | [bool; 10]      |
 
 ### String type
 
-| ROS              | C                                          | Rust                                |
-|------------------|--------------------------------------------|-------------------------------------|
-| string[]         | struct rosidl_runtime_c__String__Sequence  | safe_drive::msg::StringSeq<0, 0>    |
-| string[<=5]      | struct rosidl_runtime_c__String__Sequence  | safe_drive::msg::StringSeq<0, 5>    |
-| string[10]       | struct rosidl_runtime_c__String var[10]    | [safe_drive::msg::RosString<0>; 10] |
-| string<=5        | struct rosidl_runtime_c__String var        | safe_drive::msg::RosString<5>       |
-| string<=5[<=10]  | struct rosidl_runtime_c__String var[10]    | safe_drive::msg::StringSeq<5, 10>   |
-| string<=5[10]    | struct rosidl_runtime_c__String var[10]    | [safe_drive::msg::RosString<5>; 10] |
+```rust
+use safe_drive::msg;
+```
+
+| ROS              | C                                          | Rust                    |
+|------------------|--------------------------------------------|-------------------------|
+| string[]         | struct rosidl_runtime_c__String__Sequence  | msg::StringSeq<0, 0>    |
+| string[<=5]      | struct rosidl_runtime_c__String__Sequence  | msg::StringSeq<0, 5>    |
+| string[10]       | struct rosidl_runtime_c__String var[10]    | [msg::RosString<0>; 10] |
+| string<=5        | struct rosidl_runtime_c__String var        | msg::RosString<5>       |
+| string<=5[<=10]  | struct rosidl_runtime_c__String var[10]    | msg::StringSeq<5, 10>   |
+| string<=5[10]    | struct rosidl_runtime_c__String var[10]    | [msg::RosString<5>; 10] |
 
 ### builtin_interfaces
 
-| ROS                              | C                                                  | Rust                                                  |
-|----------------------------------|----------------------------------------------------|-------------------------------------------------------|
-| builtin_interfaces/Duration[]    | struct builtin_interfaces__msg__Duration__Sequence | builtin_interfaces::UnsafeDurationSeq<0>   |
-| builtin_interfaces/Time[]        | struct builtin_interfaces__msg__Time__Sequence     | builtin_interfaces::UnsafeTimeSeq<0>       |
-| builtin_interfaces/Duration[<=5] | struct builtin_interfaces__msg__Duration__Sequence | builtin_interfaces::UnsafeDurationSeq<5>   |
-| builtin_interfaces/Time[<=5]     | struct builtin_interfaces__msg__Time__Sequence     | builtin_interfaces::UnsafeTimeSeq<5>       |
-| builtin_interfaces/Duration[5]   | struct builtin_interfaces__msg__Duration__Sequence | [builtin_interfaces::UnsafeDurationSeq; 5] |
-| builtin_interfaces/Time[5]       | struct builtin_interfaces__msg__Time__Sequence     | [builtin_interfaces::UnsafeTimeSeq<5>; 5]  |
+```rust
+use safe_drive::msg::builtin_interfaces;
+```
 
+| ROS                              | C                                                  | Rust                                     |
+|----------------------------------|----------------------------------------------------|------------------------------------------|
+| builtin_interfaces/Duration[]    | struct builtin_interfaces__msg__Duration__Sequence | builtin_interfaces::UnsafeDurationSeq<0> |
+| builtin_interfaces/Time[]        | struct builtin_interfaces__msg__Time__Sequence     | builtin_interfaces::UnsafeTimeSeq<0>     |
+| builtin_interfaces/Duration[<=5] | struct builtin_interfaces__msg__Duration__Sequence | builtin_interfaces::UnsafeDurationSeq<5> |
+| builtin_interfaces/Time[<=5]     | struct builtin_interfaces__msg__Time__Sequence     | builtin_interfaces::UnsafeTimeSeq<5>     |
+| builtin_interfaces/Duration[5]   | struct builtin_interfaces__msg__Duration[5]        | [builtin_interfaces::UnsafeDuration; 5]  |
+| builtin_interfaces/Time[5]       | struct builtin_interfaces__msg__Time[5]            | [builtin_interfaces::UnsafeTime; 5]      |
