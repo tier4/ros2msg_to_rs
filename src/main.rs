@@ -110,9 +110,6 @@ fn generate_mod_rs(
 
         for s in val {
             mod_rs_in.write_fmt(format_args!("pub mod {s};\n"))?;
-            if s == "msg" {
-                mod_rs_in.write_fmt(format_args!("pub use msg::*;\n"))?;
-            }
         }
     }
     Ok(())
