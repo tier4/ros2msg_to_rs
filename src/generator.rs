@@ -38,6 +38,7 @@ impl Generator {
         let mut lines = VecDeque::new();
         lines.push_back("use super::super::*;".into());
         lines.push_back("use super::super::super::*;".into());
+        lines.push_back("use super::super::msg::*;".into());
         lines.push_back(format!("use {}::msg::*;", self.safe_drive_path).into());
         lines.push_back(format!("use {}::rcl;", self.safe_drive_path).into());
         lines.push_back(format!("use {}::msg::common_interfaces::*;", self.safe_drive_path).into());
@@ -117,6 +118,7 @@ impl Generator {
         let mut lines = VecDeque::new();
         lines.push_back("use super::*;".into());
         lines.push_back("use super::super::super::*;".into());
+        lines.push_back("use super::super::msg::*;".into());
         lines.push_back(format!("use {}::msg::*;", self.safe_drive_path).into());
         lines.push_back(format!("use {}::rcl;", self.safe_drive_path).into());
 
