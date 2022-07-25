@@ -379,8 +379,10 @@ fn gen_cfun_msg(lines: &mut VecDeque<Cow<'_, str>>, module_name: &str, type_name
 extern \"C\" {{
     fn {module_name}__msg__{type_name}__init(msg: *mut {type_name}) -> bool;
     fn {module_name}__msg__{type_name}__fini(msg: *mut {type_name});
+    fn {module_name}__msg__{type_name}__are_equal(lhs: *const {type_name}, rhs: *const {type_name}) -> bool;
     fn {module_name}__msg__{type_name}__Sequence__init(msg: *mut {type_name}SeqRaw, size: usize) -> bool;
     fn {module_name}__msg__{type_name}__Sequence__fini(msg: *mut {type_name}SeqRaw);
+    fn {module_name}__msg__{type_name}__Sequence__are_equal(lhs: *const {type_name}SeqRaw, rhs: *const {type_name}SeqRaw) -> bool;
     fn rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}() -> *const rcl::rosidl_message_type_support_t;
 }}
 "
@@ -418,7 +420,26 @@ impl TopicMsg for {type_name} {{
             rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}()
         }}
     }}
-}}"
+}}
+
+impl PartialEq for {type_name} {{
+    fn eq(&self, other: &Self) -> bool {{
+        unsafe {{
+            {module_name}__msg__{type_name}__are_equal(self, other)
+        }}
+    }}
+}}
+
+impl<const N: usize> PartialEq for {type_name}Seq<N> {{
+    fn eq(&self, other: &Self) -> bool {{
+        unsafe {{
+            let msg1 = {type_name}SeqRaw{{data: self.data, size: self.size, capacity: self.capacity}};
+            let msg2 = {type_name}SeqRaw{{data: other.data, size: other.size, capacity: other.capacity}};
+            {module_name}__msg__{type_name}__Sequence__are_equal(&msg1, &msg2)
+        }}
+    }}
+}}
+"
     );
 
     lines.push_back(impl_str.into());
