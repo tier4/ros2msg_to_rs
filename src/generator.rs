@@ -556,21 +556,21 @@ impl<const N: usize> {type_name_full}Seq<N> {{
         }}
     }}
 
-    pub fn as_slice(&self) -> Option<&[{type_name_full}]> {{
+    pub fn as_slice(&self) -> &[{type_name_full}] {{
         if self.data.is_null() {{
-            None
+            &[]
         }} else {{
             let s = unsafe {{ std::slice::from_raw_parts(self.data, self.size) }};
-            Some(s)
+            s
         }}
     }}
 
-    pub fn as_slice_mut(&mut self) -> Option<&mut [{type_name_full}]> {{
+    pub fn as_slice_mut(&mut self) -> &mut [{type_name_full}] {{
         if self.data.is_null() {{
-            None
+            &mut []
         }} else {{
             let s = unsafe {{ std::slice::from_raw_parts_mut(self.data, self.size) }};
-            Some(s)
+            s
         }}
     }}
 }}
