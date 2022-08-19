@@ -573,6 +573,14 @@ impl<const N: usize> {type_name_full}Seq<N> {{
             s
         }}
     }}
+
+    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, {type_name_full}> {{
+        self.as_slice().iter()
+    }}
+
+    pub fn iter_mut<'a>(&'a mut self) -> std::slice::IterMut<'a, {type_name_full}> {{
+        self.as_slice_mut().iter_mut()
+    }}
 }}
 
 impl<const N: usize> Drop for {type_name_full}Seq<N> {{
