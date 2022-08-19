@@ -581,6 +581,10 @@ impl<const N: usize> {type_name_full}Seq<N> {{
     pub fn iter_mut<'a>(&'a mut self) -> std::slice::IterMut<'a, {type_name_full}> {{
         self.as_slice_mut().iter_mut()
     }}
+
+    pub fn len(&self) -> usize {{
+        self.as_slice().len()
+    }}
 }}
 
 impl<const N: usize> Drop for {type_name_full}Seq<N> {{
