@@ -556,6 +556,11 @@ impl<const N: usize> {type_name_full}Seq<N> {{
         }}
     }}
 
+    pub fn null() -> Self {{
+        let msg: {type_name_full}SeqRaw = unsafe {{ std::mem::MaybeUninit::zeroed().assume_init() }};
+        Self {{data: msg.data, size: msg.size, capacity: msg.capacity }}
+    }}
+
     pub fn as_slice(&self) -> &[{type_name_full}] {{
         if self.data.is_null() {{
             &[]
