@@ -403,6 +403,8 @@ extern \"C\" {{
     fn {module_name}__srv__{type_name}_Response__Sequence__init(msg: *mut {type_name}ResponseSeqRaw, size: usize) -> bool;
     fn {module_name}__srv__{type_name}_Response__Sequence__fini(msg: *mut {type_name}ResponseSeqRaw);
     fn rosidl_typesupport_c__get_service_type_support_handle__{module_name}__srv__{type_name}() -> *const rcl::rosidl_service_type_support_t;
+    fn rosidl_typesupport_c__get_message_type_support_handle__{module_name}__srv__{type_name}_Request() -> *const rcl::rosidl_message_type_support_t;
+    fn rosidl_typesupport_c__get_message_type_support_handle__{module_name}__srv__{type_name}_Response() -> *const rcl::rosidl_message_type_support_t;
 }}
 "
     );
@@ -414,7 +416,7 @@ fn gen_impl_and_seq_msg(lines: &mut VecDeque<Cow<'_, str>>, module_name: &str, t
     let impl_str = gen_impl(module_name, type_name, "", "", MsgOrSrv::Msg);
     let impl_trait_str = format!(
         "
-impl TopicMsg for {type_name} {{
+impl TypeSupport for {type_name} {{
     fn type_support() -> *const rcl::rosidl_message_type_support_t {{
         unsafe {{
             rosidl_typesupport_c__get_message_type_support_handle__{module_name}__msg__{type_name}()
@@ -470,6 +472,22 @@ impl ServiceMsg for {type_name} {{
     fn type_support() -> *const rcl::rosidl_service_type_support_t {{
         unsafe {{
             rosidl_typesupport_c__get_service_type_support_handle__{module_name}__srv__{type_name}()
+        }}
+    }}
+}}
+
+impl TypeSupport for {type_name}Request {{
+    fn type_support() -> *const rcl::rosidl_message_type_support_t {{
+        unsafe {{
+            rosidl_typesupport_c__get_message_type_support_handle__{module_name}__srv__{type_name}_Request()
+        }}
+    }}
+}}
+
+impl TypeSupport for {type_name}Response {{
+    fn type_support() -> *const rcl::rosidl_message_type_support_t {{
+        unsafe {{
+            rosidl_typesupport_c__get_message_type_support_handle__{module_name}__srv__{type_name}_Response()
         }}
     }}
 }}
