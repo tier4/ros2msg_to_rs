@@ -7,7 +7,7 @@ authors = ["Yuuki Takano <yuuki.takano@tier4.jp>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "7.1.1"
-walkdir = "2.3.2"
-convert_case = "0.5.0"
-clap = { version = "3.1.18", features = ["derive"] }
+nom = "7.1"
+walkdir = "2.3"
+convert_case = "0.6"
+clap = { version = "4.1", features = ["derive"] }
