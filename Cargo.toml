@@ -1,6 +1,6 @@
 [package]
 name = "ros2msg_to_rs"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Yuuki Takano <yuuki.takano@tier4.jp>"]
 
