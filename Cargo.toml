@@ -9,5 +9,5 @@ authors = ["Yuuki Takano <yuuki.takano@tier4.jp>"]
 [dependencies]
 nom = "7.1"
 walkdir = "2.3"
-convert_case = "0.6"
+convert_case = "0.8"
 clap = { version = "4.1", features = ["derive"] }

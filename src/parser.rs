@@ -66,6 +66,7 @@ pub enum Expr {
     Eof,
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 pub enum ValueType {
     Const(Value),
